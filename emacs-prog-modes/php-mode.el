@@ -5,10 +5,10 @@
 ;; Maintainer: Turadg Aleahmad <turadg at users.sourceforge.net>
 ;; Keywords: php languages oop
 ;; Created: 1999-05-17
-;; Modified: 2003-02-26
+;; Modified: 2003-09-28
 ;; X-URL:   http://php-mode.sourceforge.net/
 
-(defconst php-version "1.0.4"
+(defconst php-version "1.0.5"
   "PHP Mode version number.")
 
 ;;; License
@@ -41,7 +41,7 @@
 ;;   (add-hook 'php-mode-user-hook
 ;;     '(lambda () (define-abbrev php-mode-abbrev-table "ex" "extends")))
 
-;; To make php-mode compatible with html-mode, see php-mode.sf.net
+;; To make php-mode compatible with html-mode, see http://php-mode.sf.net
 
 ;; Many options available under Help:Customize
 ;; Options specific to php-mode are in
@@ -59,124 +59,21 @@
 ;; and class browser.
 
 
+;;; Contributors: (in chronological order)
+
+;; Juanjo, Torsten Martinsen, Vinai Kopp, Sean Champ, Doug Marcey,
+;; Kevin Blake, Rex McMaster, Mathias Meyer, Boris Folgmann, Roland
+;; Rosenfeld, Fred Yankowski, Craig Andrews, John Keller, Ryan
+;; Sammartino, ppercot, Valentin Funk, Stig Bakken, Gregory Stark,
+;; Chris Morris
+
 ;;; Changelog:
 
-;; 1.04
-;;   Fixed unbalanced regexp for "->symbol" match
-;;   Removed abbreviation definitions since they cause abbrev-mode
-;;   to always be enabled.  If you want them, include them in your
-;;   php-mode-user-hook as described above.
-
-;; 1.03
-;;   Took '_' out of word syntax table (suggested by Gregory Stark)
-;;   Revised regexps to include '_' (Turadg)
-;;   Include ZE 2 keywords (Stig Bakken)
-;;   Highlight superglobals (Stig Bakken)
-;;   Addition of "boolean" to types (Valentin Funk)
-;;   Autoloading of php-file-patterns (ppercot)
-
-;; 1.02
-;;   Highlight HTML tags and entities (see site for more on HTML)
-;;   Highlight more constants by default
-;;   Fixed problem with $-line indenting inside switch (see comments)
-;;   Fix to show keymap in help mode (Ryan Sammartino)
-;;   Added .phps to default extensions to match (John Keller)
-
-;; 1.0.1
-;;   Fix for some speedbar problems
-
-;; 1.0.0
-;;   Function indentation fix (Craig Andrews)
-;;   Added option to open speedbar on buffer load
-;;   Fixed PEAR filename matching regexps and bug with mmm-mode
-;;   Added preference option to always use PEAR standards
-;;   Fixed PEAR hook bug with XEmacs
-;;   Took out warning for empty parens in "new Object()"
-;;   Fixed keyword highlighting of 'this' at start of variable
-;;   Removed "goto" references
-;;   Added 'next' as keyword
-
-;; 0.9.9
-;;   Fixed highlights for targets of gotos and 'default' within a switch
-;;   Changed my e-mail and URL to SourceForge
-;;   Changed name of hook variable (update your .emacs)
-;;   Wrapped PEAR standards into a PEAR hook
-;;   Disabled coloring non-core constants (see comments to re-enable)
-
-;; 0.9.8
-;;   Thanks to a patch from Stig Saether Bakken:
-;;   Checks for PEAR before setting indent-tabs-mode to nil
-;;   Adds some keywords that got lost
-;;   Highlights function $foo and class::method
-;;   Removes C++ template from speedbar search expression :)
-;;   Adds about a thousand constants
-;;     So many that if you want to recompile php-mode-098.el
-;;     you'll have to greatly increase max-specpdl-size
-
-;; 0.9.7
-;;      This version marks a huge advance and will become 1.0.0
-;;    after I wait a bit for possible bug reports.
-;;      
-;;      The primary improvement is support for shell-style comments
-;;    in both GNU Emacs and XEmacs.  Thank for this goes to Fred
-;;    Yankowski <fred@ontosys.com>.
-;; 
-;;    Customization of mode hook (Roland Rosenfeld)
-;;    Fontifies object references much more intelligently
-;;    Added .inc to filename and Speedbar patterns
-;;    PEAR coding standards (tabs -> 4 spaces)
-;;    Fontify ASP-style tag (Fred)
-;;    Rudimentary coloration of HTML tags (Fred)
-;;    Buges fixed:
-;;      Extraneous newline at end of file (Fred)
-;;      Colored functions within comments
-;;      Didn't recognize keywords in caps
-;;      Colored functions as variables when referenced by an object
-
-;; 0.9.6 2001-01-28
-;;    Keyboard shortcuts for menu functions (Boris Folgmann)
-;;    Fixed default regexp for detecting PHP files (Mathias Meyer)
-;;    Changed PHP3 menu to simply PHP
-
-;; 0.9.5 2001-01-14
-;;    Been told that problems with XEmacs are no longer
-;;    Search documention command actually works
-;;    Browse manual customization improved
-
-;; 0.9.4 2001-01-08
-;;    Search documentation command
-;;    Browse manual function
-;;    Simplified file patterns for which to load php-mode
-;;    PHP awareness in Speedbar
-;;    Customization options for all of the above
-
-;; 0.9.3 2000-11-12
-;;    imenu support for classes and functions (Rex McMaster)
-;;    Dramatically improved regexps (Kevin Blake)
-;;    Fix for XEmacs font-lock-pre-idle-hook problem? (Doug Marcey)
-;;    Progress on PHP3 menu functions (Sean Champ)
-;;    Added "foreach" to list of keywords (Sean Champ)
-;;    More file suffixes observed (Vinai Kopp)
-
-;; 0.9.2 2000-03-08
-;;    Fixed bug with 1-character identifiers
-;;    Fixed bug with class declaration coloring
-;;    Added coloring for true, false, null
-;;    Officially not supporting XEmacs
-
-;; 0.9.1 2000-02-21
-;;    Disabled keywords in XEmacs for compatibility
-;;    Added usage info to comments
-
-;; 0.9 2000-01-09
-;;    Clarified bug with XEmacs (Juanjo)
-;;    Fixed minor bug with comment highlighting (Juanjo)
-;;    Syntax parsing from PHP3 lexical scanner (Torsten Martinsen)
-;;    Highlights function and method names now
-;;    Highlights "this" as keyword when used as an object in variable names
-
-;; 0.8 1999-05-17
-;;	Initial release.
+;; 1.05
+;;   Incorporated speedbar defs by Gerrit Riessen
+;;   Add "foreach" to conditional introducing keywords (Nils Rennebarth)
+;;   Cleared the Changelog
+;;   Moved contribution credits into comments above
 
 
 ;;; Code:
@@ -245,6 +142,8 @@ Turning this on will force PEAR rules on all PHP files."
 	comment-end   ""
 	comment-start-skip "// *")
   
+  (setq c-conditional-key php-conditional-key)
+
   (defvar php-mode-syntax-table php-mode-syntax-table)
   ;; this line makes $ into punctuation instead of a word constituent
   ;; it used to be active, but it killed indenting of case lines that
@@ -277,7 +176,7 @@ Turning this on will force PEAR rules on all PHP files."
   
   (setq font-lock-maximum-decoration t
 	case-fold-search t		; PHP vars are case-sensitive
-	imenu-generic-expression cc-imenu-php-generic-expression)
+	imenu-generic-expression php-imenu-generic-expression)
   
   ;; Do not force newline at end of file.  Such newlines can cause
   ;; trouble if the PHP file is included in another file before calls
@@ -850,7 +749,7 @@ Turning this on will force PEAR rules on all PHP files."
     '("\\(?:\\sw\\|\\s_\\)+::\\(?:\\sw\\|\\s_\\)+\\s-*(" . default) ; class::method call
     '("\\<\\(?:\\sw\\|\\s_\\)+\\s-*[[(]" . default)	; word( or word[
     '("\\<[0-9]+" . default)		; number (also matches word)
-    
+
     ;; Warn on any words not already fontified
     '("\\<\\(?:\\sw\\|\\s_\\)+\\>" . font-lock-warning-face)
     ))
@@ -875,26 +774,26 @@ Turning this on will force PEAR rules on all PHP files."
        (1 (12 . nil)))
      )))
 
-;; imenu- from cc-mode
-(defvar cc-imenu-php-generic-expression
-  (`
-   (("class"
-     (, (concat
-	 "^"				; beginning of line is required
-	 "class[ \t\n]+"
-	 "\\([a-zA-Z0-9_]+\\)"		; this is the string we want to get
-	 "\\([ \t]+extends[ \t]+[a-zA-Z0-9_]+\\)?" ; may be inherited
-	 "[ \t\n]*{"
-	 )) 2)
-    ("function"
-     (, (concat
-	 "^"				; beginning of line is required
-	 "[ \t]*function[ \t\n]+&?"
-	 "\\([a-zA-Z0-9_]+\\)[ \t\n]*(.*)" ; this is the string we want to get
-	 "[ \t\n]*{"
-	 )) 2)
-    ))
-  )
+;; Define the imenu-generic-expression for PHP mode.
+;; To use, execute M-x imenu, then click on Functions or Classes,
+;; then select given function/class name to go to its definition.
+;; [Contributed by Gerrit Riessen]
+(defvar php-imenu-generic-expression
+ '(
+   ("Functions"
+    "\\(^\\|\\s-\\)function\\s-+\\(\\sw+\\)\\s-*(" 2)
+   ("Classes"
+    "\\(^\\|\\s-\\)class\\s-+\\(\\sw+\\)\\s-*" 2)
+   )
+ "Imenu generic expression for PHP Mode. See `imenu-generic-expression'."
+ )
+
+;; Add "foreach" to conditional introducing keywords
+(defconst php-conditional-key nil)
+(let ((all-kws "for\\|if\\|do\\|else\\|while\\|switch")
+      (front   "\\<\\(")
+      (back    "\\)\\>[^_]"))
+  (setq php-conditional-key (concat front all-kws "\\|foreach" back)))
 
 ;; Create "default" symbol for GNU Emacs so that both Xemacs and GNU
 ;; emacs can refer to the default face by a variable named "default".

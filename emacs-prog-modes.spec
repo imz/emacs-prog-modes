@@ -1,11 +1,11 @@
 Version: 0.1
-Release: alt7
+Release: alt8
 Name: emacs-prog-modes
 License: GPL
 Group: Editors
 Summary: Various programming packages for Emacs
 Summary(ru_RU.KOI8-R): Дополнительные пакеты Emacs для работы с исходными текстами программ
-Requires: emacs-common deroff
+Requires: emacs-X11 deroff
 
 Source: %name.tar.gz
 Source1: emacs-mode-php-site-start.el
@@ -21,7 +21,7 @@ Source9: emacs-mode-xbase-site-start.el
 BuildArch: noarch
 
 # Automatically added by buildreq on Tue Dec 24 2002
-BuildRequires: emacs-common python22
+BuildRequires: emacs-X11 python23
 
 %description
 Various programming packages for Emacs, including packages for editing
@@ -38,16 +38,14 @@ programms on C, Scheme, Fortran, Ruby and others.
 
 %build
 for i in *.el ; do
-	emacs -batch --eval "(progn
-	(setq load-path (append (list \".\")  load-path))
-	(byte-compile-file \"$i\"))"
+  emacs -batch --eval "(progn (add-to-list 'load-path \".\") (byte-compile-file \"$i\"))"
 done
 
 %install
 mkdir -p %buildroot%_emacslispdir/
 install -m 644 *.el* %buildroot%_emacslispdir/
 mkdir -p %buildroot%_datadir/emacs/etc/prog-modes/
-install -m 755 *.sh *.py %buildroot%_datadir/emacs/etc/prog-modes/
+install -m 755 *.sh %buildroot%_datadir/emacs/etc/prog-modes/
 install -m 644 c_synopsis_list %buildroot%_datadir/emacs/etc/prog-modes/
 %__install -pD -m0644 %SOURCE1 %buildroot%_sysconfdir/emacs/site-start.d/php.el
 %__install -pD -m0644 %SOURCE2 %buildroot%_sysconfdir/emacs/site-start.d/c-mode-addons.el
@@ -66,6 +64,10 @@ install -m 644 c_synopsis_list %buildroot%_datadir/emacs/etc/prog-modes/
 %config(noreplace) %_sysconfdir/emacs/site-start.d/*
 
 %changelog
+* Sat Dec 13 2003 Ott Alex <ott@altlinux.ru> 0.1-alt8
+- New version of php-mode 
+- Move antlr-mode from emacs-common
+
 * Sun Nov 30 2003 Ott Alex <ott@altlinux.ru> 0.1-alt7
 - add php-mode from emacs-common to package
 - adding more site-start scripts
