@@ -1,5 +1,5 @@
 Version: 0.1
-Release: alt11
+Release: alt12
 Name: emacs-prog-modes
 License: GPL
 Group: Editors
@@ -62,6 +62,11 @@ install -m 644 c_synopsis_list %buildroot%_datadir/emacs/etc/prog-modes/
 %config(noreplace) %_sysconfdir/emacs/site-start.d/*
 
 %changelog
+* Thu May 06 2004 Ott Alex <ott@altlinux.ru> 0.1-alt12
+- Added flymake package
+- Added codemetric package
+- Added different minor modes for work with CVS
+
 * Tue Jan 27 2004 Ott Alex <ott@altlinux.ru> 0.1-alt11
 - Fixing startup scripts
 
