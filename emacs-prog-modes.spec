@@ -1,5 +1,5 @@
 Version: 0.1
-Release: alt12
+Release: alt13
 Name: emacs-prog-modes
 License: GPL
 Group: Editors
@@ -19,8 +19,8 @@ Source9: emacs-mode-xbase-site-start.el
 
 BuildArch: noarch
 
-# Automatically added by buildreq on Tue Dec 24 2002
-BuildRequires: emacs-X11 python23
+# Automatically added by buildreq on Wed Jul 14 2004
+BuildRequires: XFree86-libs XFree86-locales emacs-cedet emacs21-common xpm
 
 %description
 Various programming packages for Emacs, including packages for editing
@@ -62,6 +62,9 @@ install -m 644 c_synopsis_list %buildroot%_datadir/emacs/etc/prog-modes/
 %config(noreplace) %_sysconfdir/emacs/site-start.d/*
 
 %changelog
+* Wed Jul 14 2004 AEN <aen@altlinux.ru> 0.1-alt13
+- NMU: rebuild in Master 2.4 environment 
+
 * Thu May 06 2004 Ott Alex <ott@altlinux.ru> 0.1-alt12
 - Added flymake package
 - Added codemetric package
