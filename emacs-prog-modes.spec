@@ -1,5 +1,5 @@
 Version: 0.1
-Release: alt8
+Release: alt10
 Name: emacs-prog-modes
 License: GPL
 Group: Editors
@@ -14,7 +14,6 @@ Source3: emacs-mode-eiffel-site-start.el
 Source4: emacs-mode-postscript-site-start.el
 Source5: emacs-mode-rexx-site-start.el
 Source6: emacs-mode-rpm-site-start.el
-Source7: emacs-mode-ruby-site-start.el
 Source8: emacs-mode-vrml-site-start.el
 Source9: emacs-mode-xbase-site-start.el
 
@@ -53,7 +52,6 @@ install -m 644 c_synopsis_list %buildroot%_datadir/emacs/etc/prog-modes/
 %__install -pD -m0644 %SOURCE4 %buildroot%_sysconfdir/emacs/site-start.d/postscript.el
 %__install -pD -m0644 %SOURCE5 %buildroot%_sysconfdir/emacs/site-start.d/rexx.el
 %__install -pD -m0644 %SOURCE6 %buildroot%_sysconfdir/emacs/site-start.d/rpm.el
-%__install -pD -m0644 %SOURCE7 %buildroot%_sysconfdir/emacs/site-start.d/ruby.el
 %__install -pD -m0644 %SOURCE8 %buildroot%_sysconfdir/emacs/site-start.d/vrml.el
 %__install -pD -m0644 %SOURCE9 %buildroot%_sysconfdir/emacs/site-start.d/xbase.el
 
@@ -64,6 +62,12 @@ install -m 644 c_synopsis_list %buildroot%_datadir/emacs/etc/prog-modes/
 %config(noreplace) %_sysconfdir/emacs/site-start.d/*
 
 %changelog
+* Mon Jan 26 2004 Ott Alex <ott@altlinux.ru> 0.1-alt10
+- 
+
+* Tue Dec 16 2003 Ott Alex <ott@altlinux.ru> 0.1-alt9
+- Remove ruby-mode, that conflicts with emacs-ruby-mode package
+
 * Sat Dec 13 2003 Ott Alex <ott@altlinux.ru> 0.1-alt8
 - New version of php-mode 
 - Move antlr-mode from emacs-common
