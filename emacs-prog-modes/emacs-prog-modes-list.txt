@@ -1,0 +1,36 @@
+autoconf-mode.el --- autoconf code editing commands for Emacs
+browse-cltl2.el --- browse the hypertext-version of "Common Lisp the Language, 2nd. Edition"
+c-fill.el --- An auto-filled comment mode for gnu c-mode.
+c-includes.el --- Find all header files included by a source file
+c-mode-addons.el --- some addon functions for c-mode, early version
+		     (например, показ справки по функциям С)
+code-review-request.el --- prepare version control diffs for mailing
+cparen.el --- coloured parentheses in Lisp-derived modes
+c-style.el --- sets c-style control variables.
+ctypes.el --- Enhanced Font lock support for custom defined types
+dbfrobs.el --- useful enhancements for debugging
+eiffel.el --- major mode for editing Eiffel files
+elp.el --- Emacs Lisp Profiler
+fdb.el --- Debug filter (Sanity saver)
+fm.el --- follow mode for compilation/output buffers
+fortran-misc.el --- Routines than can be used with fortran mode
+giguile.el --- tweaks for Guile editing and inferior processes
+ide.el --- minor mode for creating c-based makefiles
+inf-ruby.el --- ruby process in a buffer
+javascript-mode.el --- major mode for editing JavaScript code
+ksh-mode.el --- sh (ksh, bash) script editing mode for GNU Emacs 
+mode-compile.el --- Smart command for compiling files according to major-mode
+p4.el --- Simple Perforce-Emacs Integration
+php-mode.el --- major mode for editing PHP code
+postscript.el --- major mode for editing PostScript programs
+pydoc.el --- Interface to pydoc Python documentation viewer
+python-mode.el --- Major mode for editing Python programs
+quack.el --- enhanced support for editing and running Scheme code
+rebox.el --- Handling of comment boxes in various styles.
+rexx-mode.el --- major mode for editing REXX program files
+rpm-spec-mode.el --- RPM spec file editing commands for Emacs/XEmacs
+ruby-mode.el
+teco.el --- Teco interpreter for Gnu Emacs, version 1
+verilog-mode.el --- major mode for editing verilog source in Emacs
+vrml-mode.el --- major mode for editing VRML (.wrl) files
+
