@@ -1,5 +1,5 @@
 Version: 0.1
-Release: alt6
+Release: alt7
 Name: emacs-prog-modes
 License: GPL
 Group: Editors
@@ -8,6 +8,15 @@ Summary(ru_RU.KOI8-R): Дополнительные пакеты Emacs для работы с исходными текста
 Requires: emacs-common deroff
 
 Source: %name.tar.gz
+Source1: emacs-mode-php-site-start.el
+Source2: emacs-c-mode-addons-site-start.el
+Source3: emacs-mode-eiffel-site-start.el
+Source4: emacs-mode-postscript-site-start.el
+Source5: emacs-mode-rexx-site-start.el
+Source6: emacs-mode-rpm-site-start.el
+Source7: emacs-mode-ruby-site-start.el
+Source8: emacs-mode-vrml-site-start.el
+Source9: emacs-mode-xbase-site-start.el
 
 BuildArch: noarch
 
@@ -40,13 +49,27 @@ install -m 644 *.el* %buildroot%_emacslispdir/
 mkdir -p %buildroot%_datadir/emacs/etc/prog-modes/
 install -m 755 *.sh *.py %buildroot%_datadir/emacs/etc/prog-modes/
 install -m 644 c_synopsis_list %buildroot%_datadir/emacs/etc/prog-modes/
+%__install -pD -m0644 %SOURCE1 %buildroot%_sysconfdir/emacs/site-start.d/php.el
+%__install -pD -m0644 %SOURCE2 %buildroot%_sysconfdir/emacs/site-start.d/c-mode-addons.el
+%__install -pD -m0644 %SOURCE3 %buildroot%_sysconfdir/emacs/site-start.d/eiffel.el
+%__install -pD -m0644 %SOURCE4 %buildroot%_sysconfdir/emacs/site-start.d/postscript.el
+%__install -pD -m0644 %SOURCE5 %buildroot%_sysconfdir/emacs/site-start.d/rexx.el
+%__install -pD -m0644 %SOURCE6 %buildroot%_sysconfdir/emacs/site-start.d/rpm.el
+%__install -pD -m0644 %SOURCE7 %buildroot%_sysconfdir/emacs/site-start.d/ruby.el
+%__install -pD -m0644 %SOURCE8 %buildroot%_sysconfdir/emacs/site-start.d/vrml.el
+%__install -pD -m0644 %SOURCE9 %buildroot%_sysconfdir/emacs/site-start.d/xbase.el
 
 %files
 %doc emacs-prog-modes-list.txt
 %_emacslispdir/*.el*
 %_datadir/emacs/etc/prog-modes/
+%config(noreplace) %_sysconfdir/emacs/site-start.d/*
 
 %changelog
+* Sun Nov 30 2003 Ott Alex <ott@altlinux.ru> 0.1-alt7
+- add php-mode from emacs-common to package
+- adding more site-start scripts
+
 * Tue Oct 28 2003 Ott Alex <ott@altlinux.ru> 0.1-alt6
 - Move pov-im file to emacs-pov-mode
 

@@ -1,1 +1,2 @@
+copy: *.el
 tar.gz: emacs-prog-modes name=emacs-prog-modes
