@@ -1,5 +1,5 @@
 Version: 0.1
-Release: alt10
+Release: alt11
 Name: emacs-prog-modes
 License: GPL
 Group: Editors
@@ -62,8 +62,11 @@ install -m 644 c_synopsis_list %buildroot%_datadir/emacs/etc/prog-modes/
 %config(noreplace) %_sysconfdir/emacs/site-start.d/*
 
 %changelog
+* Tue Jan 27 2004 Ott Alex <ott@altlinux.ru> 0.1-alt11
+- Fixing startup scripts
+
 * Mon Jan 26 2004 Ott Alex <ott@altlinux.ru> 0.1-alt10
-- 
+- Fixing startup scripts
 
 * Tue Dec 16 2003 Ott Alex <ott@altlinux.ru> 0.1-alt9
 - Remove ruby-mode, that conflicts with emacs-ruby-mode package
