@@ -1,13 +1,13 @@
 ;;; mode-compile.el ---  Smart command for compiling files
 ;;                       according to major-mode.
 ;;
-;;   Copyright (c) 1994 - 1997 heddy Boubaker C.E.N.A.
+;;   Copyright (c) 1994 - 2003 heddy Boubaker C.E.N.A.
 ;;
-;;   Author: Heddy Boubaker <heddy.Boubaker@cena.dgac.fr>
-;;   Maintainer: Heddy Boubaker <heddy.Boubaker@cena.dgac.fr>
+;;   Author: Heddy Boubaker <heddy.Boubaker@cena.fr>
+;;   Maintainer: Heddy Boubaker <heddy.Boubaker@cena.fr>
 ;;   Created: June 1994
-;;   Last modified: 1999/09/20 13:52:47
-;;   Version: 2.27
+;;   Last modified: 2003/04/01 13:52:47
+;;   Version: 2.28
 ;;   Keywords: compile, compilation, modes, languages
 ;;   Tested for:
 ;;     XEmacs (Lucid GNU Emacs) >= 19.10
@@ -16,50 +16,49 @@
 ;;   Ftp access:
 ;;    archive.cis.ohio-state.edu:pub/gnu/emacs/elisp-archive/misc/mode-compile.el.Z
 ;;   WWW access:
-;;    <URL http://www.cenatls.cena.dgac.fr/~boubaker/Emacs/index.html>
+;;    <URL http://www.tls.cena.fr/~boubaker/Emacs/>
 ;;
 ;; LCD Archive Entry:
-;; mode-compile|Heddy Boubaker|boubaker@cena.dgac.fr|
+;; mode-compile|Heddy Boubaker|boubaker@cena.fr|
 ;; Smart command for compiling files according to major-mode and more.|
-;; 1999/09/20 13:52:47|2.27|~/misc/mode-compile.el.Z|
+;; 2003/04/01 13:52:47|2.28|~/misc/mode-compile.el.Z|
 ;;
 ;;; This file is NOT part of GNU Emacs but the same permissions apply.
 ;;
-;; GNU Emacs is free software; you can redistribute it and/or modify
-;; it under the terms of the GNU General Public License as published by
-;; the Free Software Foundation; either version 2, or (at your option)
-;; any later version.
+;; GNU Emacs is free software; you can redistribute  it and/or modify it under
+;; the terms  of  the GNU General   Public License as   published  by the Free
+;; Software Foundation;    either version 2,   or (at  your option)  any later
+;; version.
 ;;
-;; GNU Emacs is distributed in the hope that it will be useful,
-;; but WITHOUT ANY WARRANTY; without even the implied warranty of
-;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-;; GNU General Public License for more details.
+;; GNU Emacs  is distributed in  the hope that it will  be useful, but WITHOUT
+;; ANY  WARRANTY; without  even the  implied   warranty of MERCHANTABILITY  or
+;; FITNESS  FOR A PARTICULAR PURPOSE.  See  the GNU General Public License for
+;; more details.
 ;;
-;; You should have received a copy of the GNU General Public License
-;; along with GNU Emacs; see the file COPYING.  If not, write to
-;; the Free Software Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
+;; You  should have received a  copy of the GNU  General  Public License along
+;; with GNU Emacs; see the  file COPYING.  If  not, write to the Free Software
+;; Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.
 ;;
 ;; @ Purpose:
 ;; ==========
 ;;
-;;  Provide `mode-compile' function as a replacement for the use of
-;;  `compile' command which is very dumb for creating it's compilation
-;;  command (use "make -k" by default).  `mode-compile' is a layer
-;;  above `compile'; Its purpose is mainly to build a smart
-;;  compile-command for `compile' to execute it. This compile-command
-;;  is built according to number of parameters:
+;;  Provide `mode-compile' function as a replacement  for the use of `compile'
+;;  command which  is  very dumb  for  creating it's  compilation command (use
+;;  "make  -k" by default).  `mode-compile'  is  a layer  above `compile'; Its
+;;  purpose is mainly   to  build a  smart  compile-command for  `compile'  to
+;;  execute  it. This   compile-command is   built   according  to number   of
+;;  parameters:
 ;;   - the major-mode.
 ;;   - presence or not of a makefile in current directory.
 ;;   - the buffer-file-name and extension.
 ;;   - what is in the current buffer (`main' function,"#!/path/shell", ...).
 ;;   - and more ... (see Commentary section below).
-;;  Most of these parameters are higly customizable throught Emacs
-;;  Lisp variables (to be set in your .emacs or through Customization
-;;  menu).  Running mode-compile after an universal-argument (C-u)
-;;  allows remote compilations, user is prompted for a host name to
-;;  run the compilation command on.  Another function provided is
-;;  `mode-compile-kill' which terminate a running compilation session
-;;  launched by `mode-compile'.
+;;  Most  of  these  parameters  are  higly customizable  throught Emacs  Lisp
+;;  variables  (to be  set  in your  .emacs  or  through Customization  menu).
+;;  Running  mode-compile after   an  universal-argument (C-u)  allows  remote
+;;  compilations, user is  prompted  for a host name   to run the  compilation
+;;  command on.   Another  function  provided  is  `mode-compile-kill'   which
+;;  terminate a running compilation session launched by `mode-compile'.
 ;;
 ;; @ Installation:
 ;; ===============
@@ -73,47 +72,44 @@
 ;;   "Command to kill a compilation launched by `mode-compile'" t)
 ;;  (global-set-key "\C-ck" 'mode-compile-kill)
 ;;
-;;   By default mode-compile is very verbose and waits a few seconds (1 by
-;;  default) after each message for the user to have time to read
-;;  it. You could set variables `mode-compile-expert-p' and
-;;  `mode-compile-reading-time' to change this behaviour.
-;;   On X-Windows systems setting the variable
-;;   `mode-compile-other-frame-p'
-;;  will create a new frame and launch the compilation command in it.
+;;  By  default mode-compile is  very verbose  and  waits a  few seconds (1 by
+;;  default) after  each message for   the user to have  time  to read it. You
+;;  could      set           variables      `mode-compile-expert-p'        and
+;;  `mode-compile-reading-time'   to  change  this    behaviour.  On X-Windows
+;;  systems  setting the variable  `mode-compile-other-frame-p'  will create a
+;;  new frame and launch the compilation command in it.
 ;;
 ;;  (*) Don't take care of messages:
 ;;        ** reference to free variable efs-remote-shell-file-name
-;;      This is perfectly normal ;-}. But if you know a way to avoid it
-;;      let me know.
+;;      This is perfectly normal ;-}. But if you know a way to avoid it let me
+;;      know.
 ;;
 ;; @ Bug Reports:
 ;; ==============
 ;;
-;;   To report a bug please use function
-;;   `mode-compile-submit-bug-report' Please note that this bug-report
-;;   facility uses Barry Warsaw's reporter.el which is part of GNU
-;;   Emacs v19 and bundled with many other packages.  If needed, you
-;;   can obtain a copy of reporter.el at the elisp-archive.
+;;   To   report a  bug  please  use function `mode-compile-submit-bug-report'
+;;   Please note that this bug-report facility uses Barry Warsaw's reporter.el
+;;   which is part of GNU Emacs v19 and bundled with many  other packages.  If
+;;   needed, you can obtain a copy of reporter.el at the elisp-archive.
 ;;
 ;; @ Documentation:
 ;; ================
 ;;
-;;  This section will explain how the `compile-command' are built
-;;  according to the `major-mode' and how to customize it.  The major
-;;  modes `mode-compile' currently known are:
-;;   - c-mode, c++-mode, makefile-mode, dired-mode, ada-mode,
-;;     emacs-lisp-mode, lisp-interaction-mode, sh-mode, csh-mode,
-;;     fundamental-mode, text-mode, indented-text-mode
-;;     compilation-mode, fortran-mode, perl-mode, zsh-mode
-;;     java-mode, tcl-mode, python-mode
+;;  This section will explain how the `compile-command' are built according to
+;;  the `major-mode' and how to  customize it.  The major modes `mode-compile'
+;;  currently known are:
+;;   - c-mode, c++-mode, makefile-mode, dired-mode, ada-mode, emacs-lisp-mode,
+;;     lisp-interaction-mode, sh-mode, csh-mode, fundamental-mode,  text-mode,
+;;     indented-text-mode     compilation-mode,  fortran-mode,    c?perl-mode,
+;;     zsh-mode java-mode, tcl-mode, python-mode
 ;;  For other modes a default behaviour is provided.
 ;;
-;;  When running `mode-compile' or `mode-compile-kill' the hooks
-;;  `mode-compile-(before|after)-(compile|kill)-hook' are executed.
-;;  The current buffer could be automatically saved if variable
-;;  `mode-compile-always-save-buffer-p' is set to `t'.  ALL the
-;;  modified buffers could be automatically saved if variable
-;;  `mode-compile-save-all-p' is set to `t'.
+;;  When    running    `mode-compile'  or     `mode-compile-kill'   the  hooks
+;;  `mode-compile-(before|after)-(compile|kill)-hook'  are   executed.     The
+;;  current   buffer   could   be      automaticaly    saved    if    variable
+;;  `mode-compile-always-save-buffer-p' is  set  to   `t'.  ALL  the  modified
+;;  buffers could  be automaticaly saved if variable `mode-compile-save-all-p'
+;;  is set to `t'.
 ;;
 ;; @@ fundamental-mode, text-mode, indented-text-mode & UNKNOWN MODES:
 ;;    *** THIS IS TOO THE DEFAULT BEHAVIOR FOR UNKNOWN MODES ***
@@ -132,61 +128,59 @@
 ;;
 ;; @@ makefile-mode:
 ;;    The makefile is run with make throught `compile' (user is prompted
-;;   for the rule to run, see variable `mode-compile-prefered-
-;;   default-makerule' to see how a default choice could be selected).
+;;   for        the        rule         to      run,      see         variable
+;;   `mode-compile-prefered-default-makerule'  to  see how  a   default choice
+;;   could be selected).
 ;;
 ;; @@ emacs-lisp-mode, lisp-interaction-mode:
 ;;    If the buffer is a .el file byte-compile it to produce a .elc file,
-;;   else just byte-compile the buffer (this don't use `compile' but
+;;   else  just  byte-compile  the   buffer  (this   don't  use  `compile' but
 ;;   `byte-compile').
 ;;
 ;; @@ dired-mode:
-;;    Find a makefile in the directory and run make with it (like in
-;;   makefile-mode), else try to byte-recompile all .el files olders
-;;   than their associated .elc files (unlike
-;;   `byte-recompile-directory' this is not recursive), finally if no
-;;   .el files are present ask compilation command to user by calling
-;;   `default-compile'.  To find a makefile a regexp is provided which
-;;   name is `mode-compile-makefile-regexp'.
+;;   Find a makefile   in   the directory and  run    make with  it   (like in
+;;   makefile-mode),  else try  to byte-recompile  all .el   files olders than
+;;   their associated  .elc  files (unlike  `byte-recompile-directory' this is
+;;   not  recursive),  finally if  no  .el  files  are present ask compilation
+;;   command to  user by  calling  `default-compile'.  To  find  a  makefile a
+;;   regexp is provided which name is `mode-compile-makefile-regexp'.
 ;;
 ;; @@ sh-mode, csh-mode, zsh-mode:
 ;;    Run "[cz]?sh" with debugging arguments as specified in
 ;;   `[cz]?sh-dbg-flags' on the currently edited file.
 ;;
-;; @@ perl-mode:
-;;    Run file with "perl -w" (can step throught errors with compile's
+;; @@ c?perl-mode:
+;;    Run  file with "perl   -w"  (can step   throught errors  with  compile's
 ;;    `next-error' command).
 ;;
 ;; @@ tcl-mode:
-;;    Run file with "wish" (can step throught errors with compile's
+;;    Run     file  with "wish"  (can     step  throught errors with compile's
 ;;    `next-error' command).
 ;;
 ;; @@ c-mode, c++-mode:
-;;    First it try to see if there is a makefile in the directory, makefiles
-;;   to look for are specified by the variable
-;;   `mode-compile-makefile-regexp'.  If yes two cases could happen:
-;;   there is only one makefile so use it, or there is more than one
-;;   (sometimes when you need to write portable soft you could have
-;;   some makefiles by system: SunOs.make, HP.make ...), in that case
-;;   prompt to user for choice (with smart completion). Once the
-;;   makefile has been selected it extract the rules from it and ask
-;;   to user to choose a rule to make (with smart completion, see
-;;   variable `mode-compile-prefered- default-makerule' to see how a
-;;   default choice could be selected).
+;;   First it try to see if there is a makefile in the directory, makefiles to
+;;   look for are  specified  by the variable  `mode-compile-makefile-regexp'.
+;;   If yes two cases could happen: there  is only one  makefile so use it, or
+;;   there is more  than one (sometimes when  you need to  write portable soft
+;;   you  could have  some makefiles by  system:  SunOs.make, HP.make ...), in
+;;   that case prompt to  user for choice  (with smart completion).   Once the
+;;   makefile has been selected  it extract the rules from  it and ask to user
+;;   to   choose  a   rule  to  make  (with  smart  completion,  see  variable
+;;   `mode-compile-prefered- default-makerule'  to  see  how  a default choice
+;;   could be selected).
 ;;
-;;    There are some cases where no makefiles are presents (YES I KNOW
-;;    this is bad practice but you sometimes have no needs to write a
-;;    Makefile). In that case the function try to build the most
-;;    intelligent compilation command by using the favourite user
-;;    C/C++ compiler: value of environment variable "CC" or "CXX" or
-;;    first found, in the PATH, of compilers specified in variable
-;;    `cc-compilers-list' or `c++-compilers-list'.
-;;   Then it look for the varenv "CFLAGS" of "CXXFLAGS" to append to
-;;   the compiler command, find the file to compile:
-;;   <name-of-the-file-to-compiled>.(c|cc|C|cpp) (see *) and ask for
-;;   confirmation. If you really trust mode-compile will build the
-;;   right command and want to bypass confirmation you could set the
-;;   variable `mode-compile-never-edit-command-p' to t.
+;;   There are some cases where no makefiles are  presents (YES I KNOW this is
+;;   bad  practice but you  sometimes have no  needs  to write a Makefile). In
+;;   that case the  function try  to build  the most intelligent   compilation
+;;   command by using the favourite  user C/C++ compiler: value of environment
+;;   variable "CC"  or "CXX"  or  first found,   in  the PATH,   of  compilers
+;;   specified in variable  `cc-compilers-list' or `c++-compilers-list'.  Then
+;;   it look for the  varenv "CFLAGS" of  "CXXFLAGS" to append to the compiler
+;;   command,        find            the     file         to          compile:
+;;   <name-of-the-file-to-compiled>.(c|cc|C|cpp)  (see    *)   and   ask   for
+;;   confirmation.  If  you  really trust mode-compile   will build  the right
+;;   command  and  want to  bypass confirmation  you  could  set the  variable
+;;   `mode-compile-never-edit-command-p' to t.
 ;;
 ;;   (*) How to find <name-of-the-file-to-compiled>:
 ;;    In both case the command try to guess which file has to be compiled:
@@ -212,9 +206,8 @@
 ;;   if `main' function found.
 ;;
 ;; @@ ada-mode:
-;;    Same as c/c++-mode but run Ada compiler on the Ada file.
-;;   There are no companion file and no way to find a main function in
-;;   Ada.
+;;   Same  as c/c++-mode but  run Ada compiler on the  Ada file.  There are no
+;;   companion file and no way to find a main function in Ada.
 ;;
 ;; @@ fortran-mode:
 ;;    Same as c-mode but run Fortran compiler on .[Ff](or)? files.
@@ -232,8 +225,8 @@
 ;; @ WhatsNew:
 ;; ===========
 ;;
-;;   Python mode support added by Bin Mu
-;;   Many executables names are now configurable
+;;  Support for cperl-mode
+;;  Require cl 
 ;;
 ;; @ Contributors/Helpers:
 ;; =======================
@@ -264,9 +257,9 @@
 ;;   Extending this to some others programming languages (modes).
 ;;   Writting an Info documentation.
 ;;   Contributors are greatly accepted (send me diffs and don't forget to
-;;  update documentation and all comments too please).
+;;   update documentation and all comments too please).
 ;;   Maybe Using ange-ftp parse .netrc utilities for remote host and
-;;  user infos.
+;;   user infos.
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -280,6 +273,7 @@
 (require 'byte-compile "bytecomp")
 ;;; For easy macros
 (require 'backquote)
+(require 'cl)
 (load-library "cl-macs")
 ;; Pretty print elisp
 (require 'pp)
@@ -311,7 +305,7 @@
 (defgroup compilation nil
   "Compilations from within Emacs variables."
   :link '(url-link :tag "Author's Emacs Page"
-                   "http://www.cenatls.cena.dgac.fr/~boubaker/Emacs/index.html")
+                   "http://www.tls.cena.fr/~boubaker/Emacs/")
   :group 'tools
   :group 'development)
 (defgroup compilation-lang nil
@@ -343,6 +337,7 @@
     (csh-mode              . (csh-compile       kill-compilation))
     (zsh-mode              . (zsh-compile       kill-compilation))
     (perl-mode             . (perl-compile      kill-compilation))
+    (cperl-mode            . (perl-compile      kill-compilation))
     (tcl-mode              . (tcl-compile       kill-compilation)) ; JWH
     (python-mode           . (python-compile    kill-compilation)) ; BM
     ;(message-mode          . (message-compile   kill-compilation))
@@ -411,7 +406,7 @@ To add a new filename regexp do the following:
             (regexp :tag "Regexp as a string")
             (symbol :tag "Variable containing the regexp")
             (sexp :tag "Form wich evaluate to a string"))
-           ;; I need to bind dynamically this with const, ideas??
+           ;; I need to bind dynamicaly this with const, ideas??
            ;;`(choice
            ;; ,@(mapcar (lambda (x) `(const ,(car x))) mode-compile-modes-alist))))
            (function :tag "Mode to use -- should be a valid assoq in mode-compile-modes-alist --")))
@@ -440,7 +435,7 @@ To add a new shell do the following:
   :type '(repeat
           (cons :tag "Association: shell name/mode"
            (string :tag "Shell name")
-           ;; I need to bind dynamically this with const, ideas??
+           ;; I need to bind dynamicaly this with const, ideas??
            ;;`(choice
            ;; ,@(mapcar (lambda (x) `(const ,(car x))) mode-compile-modes-alist))))
            (function :tag "Mode to use -- should be a valid assoq in mode-compile-modes-alist --")))
@@ -642,7 +637,7 @@ which will be used for compiling without makefile.
 
  Could be used in combination with
  (cc|c++|ada|f77)-default-compiler-options
-to automatically choose the compiler specific options.
+to automaticaly choose the compiler specific options.
 
 example:
  (defun my-compiler-get-options()
@@ -708,7 +703,7 @@ user-login-name will be used."
   "The shell command used to run a command remotely.
 \"rsh\" is the only choice I know but I'm far to know everything...
 
- This variable is set automatically with the value of
+ This variable is set automaticaly with the value of
 remote-shell-program or efs-remote-shell-file-name at load time."
   :type 'string
   :group 'compilation)
@@ -748,7 +743,7 @@ on the remote host, to give to mode-compile-remote-execute-command."
   :group 'compilation-remote)
 
 (defcustom mode-compile-remote-execute-misc-args ""
-  "Misc additional arguments to give to the
+  "Misc additionnals arguments to give to the
 mode-compile-remote-execute-command."
   :type 'string
   :group 'compilation-remote)
@@ -1255,7 +1250,7 @@ See variable compilation-error-regexp-alist for more details.")
 (defcustom python-dbg-flags ""
   "*Flags to give to python -- none."
   :type 'string
-  :group 'compile-python)
+  :group 'compile-phthon)
 
 (defvar python-compilation-error-regexp-alist
   ;; TK  (file "/directory-path/filename.tcl" line XY in ZZZ)
@@ -1330,13 +1325,13 @@ needing to be recompiled or not."
 ;; @@ Misc declarations ;;;
 
 ;;;###autoload
-(defconst mode-compile-version "2.27"
+(defconst mode-compile-version "2.28"
   "Current version of mode-compile package.
 
-mode-compile.el,v 2.27 1999/09/20 13:52:47 boubaker Exp
-Please send bugs-fixes/contributions/comments to boubaker@cena.dgac.fr")
+mode-compile.el,v 2.28 2003/04/01 13:52:47 boubaker Exp
+Please send bugs-fixes/contributions/comments to boubaker@cena.fr")
 
-(defconst mode-compile-help-address "heddy.Boubaker@cena.dgac.fr"
+(defconst mode-compile-help-address "heddy.Boubaker@cena.fr"
   "E-Mail address of mode-compile maintainer.")
 
 
@@ -1725,7 +1720,7 @@ Please send bugs-fixes/contributions/comments to boubaker@cena.dgac.fr")
                 " -c "
               ;; outfile will be an executable file
               " ")
-            "\"" infile "\" -o \"" out-file "\"")))
+            infile " -o " out-file )))
 
 (defun mc--set-remote-cmd (remote-host &optional username pathname)
   ;; Check validity of remote-host or ask one to user
@@ -1976,7 +1971,7 @@ Please send bugs-fixes/contributions/comments to boubaker@cena.dgac.fr")
             ;; build make command by asking rule to user
             (concat mode-compile-make-program " "
                     (or (mc--eval mode-compile-make-options) "")
-                    " -f \"" mc--selected-makefile "\" "
+                    " -f " mc--selected-makefile " "
                     (mc--choose-makefile-rule
                      mc--selected-makefile out-fname))))
       ;; else
@@ -2014,7 +2009,7 @@ Please send bugs-fixes/contributions/comments to boubaker@cena.dgac.fr")
          (shfile  (or mc--remote-pathname (buffer-file-name)
                       (error "Compilation abort: Buffer %s has no filename"
                              (buffer-name))))
-         (run-cmd (concat shcmd " " dbgflags " \"" shfile "\" "
+         (run-cmd (concat shcmd " " dbgflags " " shfile " "
                           (setq mc--shell-args
                                 (read-string (if mode-compile-expert-p
                                                  "Argv: "
@@ -2283,7 +2278,7 @@ The user is prompted for a selection of make rules to build."
     (setq mc--compile-command
           (concat mode-compile-make-program " "
                   (or (mc--eval mode-compile-make-options) "")
-                  " -f \"" mkfile "\" "
+                  " -f " mkfile " "
                   (mc--choose-makefile-rule mkfile))))
     (mc--compile mc--compile-command))
 
@@ -2503,6 +2498,7 @@ Currently know how to compile in:
  `csh-mode'              -- function csh-compile.
  `zsh-mode'              -- function zsh-compile.
  `perl-mode'             -- function perl-compile.
+ `cperl-mode'            -- function perl-compile.
  `tcl-mode'              -- function tcl-compile.
  `python-mode'           -- function python-compile.
  `fundamental-mode'      -- function guess-compile.
@@ -2606,6 +2602,7 @@ Currently know how to kill compilations from:
  `csh-mode'              -- function kill-compilation.
  `zsh-mode'              -- function kill-compilation.
  `perl-mode'             -- function kill-compilation.
+ `cperl-mode'            -- function kill-compilation.
  `tcl-mode'              -- function kill-compilation.
  `python-mode'           -- function kill-compilation.
  `fundamental-mode'      -- Bound dynamically.

@@ -1,11 +1,16 @@
-Version: 0.1
-Release: alt13
+# -*- coding: utf-8; mode: rpm-spec -*-
+# $Id: emacs-prog-modes.spec,v 1.1 2005/10/13 14:10:29 eugene Exp $
+
+Version: 0.2
+Release: alt1
 Name: emacs-prog-modes
 License: GPL
 Group: Editors
 Summary: Various programming packages for Emacs
-Summary(ru_RU.KOI8-R): Дополнительные пакеты Emacs для работы с исходными текстами программ
+Summary(ru_RU.UTF-8): п■п╬п©п╬п╩п╫п╦я┌п╣п╩я▄п╫я▀п╣ п©п╟п╨п╣я┌я▀ Emacs п╢п╩я▐ я─п╟п╠п╬я┌я▀ я│ п╦я│я┘п╬п╢п╫я▀п╪п╦ я┌п╣п╨я│я┌п╟п╪п╦ п©я─п╬пЁя─п╟п╪п╪
 Requires: emacs-X11 deroff
+
+Packager: Emacs Maintainers Team <emacs@packages.altlinux.org>
 
 Source: %name.tar.gz
 Source1: emacs-mode-php-site-start.el
@@ -19,21 +24,21 @@ Source9: emacs-mode-xbase-site-start.el
 
 BuildArch: noarch
 
-# Automatically added by buildreq on Wed Jul 14 2004
-BuildRequires: XFree86-libs XFree86-locales emacs-cedet emacs21-common xpm
+# Automatically added by buildreq on Thu Oct 13 2005
+BuildRequires: emacs-cedet emacs-common emacs-elib emacs-leim fontconfig freetype2 xorg-x11-locales
 
 %description
 Various programming packages for Emacs, including packages for editing
-programms on C, Scheme, Fortran, Ruby and others.
+programms on C, Scheme, Fortran and others.
 
-%description -l ru_RU.KOI8-R
-Дополнительные пакеты Emacs для работы с исходными текстами программ на
-языках С, Fortran, Scheme, Ruby и других, а также различные вспомогательные
-режимы для редактирования файлов Autoconf/Automake, отладки и многого
-другого.
+%description -l ru_RU.UTF-8
+п■п╬п©п╬п╩п╫п╦я┌п╣п╩я▄п╫я▀п╣ п©п╟п╨п╣я┌я▀ Emacs п╢п╩я▐ я─п╟п╠п╬я┌я▀ я│ п╦я│я┘п╬п╢п╫я▀п╪п╦ я┌п╣п╨я│я┌п╟п╪п╦ п©я─п╬пЁя─п╟п╪п╪ п╫п╟
+я▐п╥я▀п╨п╟я┘ п║, Fortran, Scheme п╦ п╢я─я┐пЁп╦я┘, п╟ я┌п╟п╨п╤п╣ я─п╟п╥п╩п╦я┤п╫я▀п╣ п╡я│п©п╬п╪п╬пЁп╟я┌п╣п╩я▄п╫я▀п╣
+я─п╣п╤п╦п╪я▀ п╢п╩я▐ я─п╣п╢п╟п╨я┌п╦я─п╬п╡п╟п╫п╦я▐ я└п╟п╧п╩п╬п╡ Autoconf/Automake, п╬я┌п╩п╟п╢п╨п╦ п╦ п╪п╫п╬пЁп╬пЁп╬
+п╢я─я┐пЁп╬пЁп╬.
 
 %prep
-%setup -n %name
+%setup -q -n %name
 
 %build
 for i in *.el ; do
@@ -41,11 +46,11 @@ for i in *.el ; do
 done
 
 %install
-mkdir -p %buildroot%_emacslispdir/
-install -m 644 *.el* %buildroot%_emacslispdir/
-mkdir -p %buildroot%_datadir/emacs/etc/prog-modes/
-install -m 755 *.sh %buildroot%_datadir/emacs/etc/prog-modes/
-install -m 644 c_synopsis_list %buildroot%_datadir/emacs/etc/prog-modes/
+%__mkdir_p %buildroot%_emacslispdir/
+%__install -m 644 *.el* %buildroot%_emacslispdir/
+%__mkdir_p %buildroot%_datadir/emacs/etc/prog-modes/
+%__install -m 755 *.sh %buildroot%_datadir/emacs/etc/prog-modes/
+%__install -m 644 c_synopsis_list %buildroot%_datadir/emacs/etc/prog-modes/
 %__install -pD -m0644 %SOURCE1 %buildroot%_sysconfdir/emacs/site-start.d/php.el
 %__install -pD -m0644 %SOURCE2 %buildroot%_sysconfdir/emacs/site-start.d/c-mode-addons.el
 %__install -pD -m0644 %SOURCE3 %buildroot%_sysconfdir/emacs/site-start.d/eiffel.el
@@ -61,7 +66,20 @@ install -m 644 c_synopsis_list %buildroot%_datadir/emacs/etc/prog-modes/
 %_datadir/emacs/etc/prog-modes/
 %config(noreplace) %_sysconfdir/emacs/site-start.d/*
 
+
+# TODO
+# 1. пёп╠я─п╟я┌я▄ п©п╬я│п╩п╣ п©п╬я▐п╡п╩п╣п╫п╦я▐ п╡ я│п╦п╥п╦я└ emacs22 antlr-mode, cperl-mode, delphi
+#    flymake
+
+
 %changelog
+* Wed Oct 12 2005 Eugene Vlasov <eugvv@altlinux.ru> 0.2-alt1
+- Updated clearcase, constants, eiffel, flymake, javascript-mode,
+  mode-compile, php-mode, quack, rpm-spec-mode, verilog-mode
+- Added c-eldoc, compile-, compile+, sql-indent
+- Removed eshell-bash, http-mode, p4, pydoc, teco
+- Fixed build requires
+
 * Wed Jul 14 2004 AEN <aen@altlinux.ru> 0.1-alt13
 - NMU: rebuild in Master 2.4 environment 
 

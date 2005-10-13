@@ -1,10 +1,10 @@
 ;;; javascript-mode.el --- major mode for editing JavaScript code
 
 ;; Copyright (C) 1997-2001 Steven Champeon
-;;               2002      Ville Skyttä
+;;               2002-2004 Ville Skyttä
 
 ;; Author:     1997 Steven Champeon <schampeo@hesketh.com>
-;; Maintainer: Ville Skyttä <ville.skytta@xemacs.org>
+;; Maintainer: Ville Skyttä <scop@xemacs.org>
 ;; Keywords:   languages javascript
 
 ;; This file is part of XEmacs.
@@ -36,6 +36,7 @@
 ;;   Sreng Truong      (bug fix for 21.1)
 ;;   Sebastian Delmont (fix for prototype function indentation problems)
 ;;   Stefan Schlee     (GNU Emacs compatibility fixes)
+;;   Igor Rayak        (ditto)
 
 ;; TODO:
 ;; - Multiple font-lock/highlight levels.
@@ -55,12 +56,13 @@
 
 ;; ------------------------------------------------------------------------ ;;
 
-(defconst javascript-mode-version "1.6" "Version of `javascript-mode'.")
+(defconst javascript-mode-version "1.9" "Version of `javascript-mode'.")
 
 ;; ------------------------------------------------------------------------ ;;
 
 (defgroup javascript nil
   "Major mode for editing JavaScript code."
+  :tag "JavaScript"
   :group 'languages
   :prefix "javascript-")
 
@@ -103,16 +105,12 @@ Set arguments for this command in `javascript-shell-command-args'."
 
 ;; ------------------------------------------------------------------------ ;;
 
-(defvar javascript-mode-map nil
+(defvar javascript-mode-map (c-make-inherited-keymap)
   "Keymap used in `javascript-mode' buffers.")
-(if javascript-mode-map
-    ()
-  (setq javascript-mode-map (copy-keymap c++-mode-map))
-  (define-key javascript-mode-map [(meta backspace)] 'backward-kill-word)
-  (define-key javascript-mode-map [(meta backward)]  'backward-kill-word)
-  (define-key javascript-mode-map [(meta delete)]    'backward-kill-word)
-  (define-key javascript-mode-map [(meta control h)] 'backward-kill-word)
-  )
+
+(defvar javascript-menu nil)
+(easy-menu-define javascript-menu javascript-mode-map
+                  "JavaScript Mode Commands" (c-mode-menu "JavaScript"))
 
 ;; ------------------------------------------------------------------------ ;;
 
@@ -199,6 +197,17 @@ From Core JavaScript Guide 1.5, Chapter 2 (Values, Variables and Literals):
 ;; ------------------------------------------------------------------------ ;;
 
 ;; Font lock keywords
+
+(defconst javascript-function-re
+  (concat "\\(^\\|[ \t;{]\\)function[ \t]+\\("
+          javascript-identifier
+          "\\)"))
+
+(defconst javascript-variable-re
+  (concat "\\(^\\|[ \t;{(]\\)\\(const\\|var\\)[ \t]+\\("
+          javascript-identifier
+          "\\)"))
+
 (defconst javascript-font-lock-keywords
   (list
 
@@ -210,11 +219,7 @@ From Core JavaScript Guide 1.5, Chapter 2 (Values, Variables and Literals):
          '(2 'font-lock-keyword-face))
 
    ;; Function declarations.
-   (cons (concat
-          "\\(^\\|[ \t;{]\\)function[ \t]+\\("
-          javascript-identifier
-          "\\)")
-         '(2 'font-lock-function-name-face))
+   (cons javascript-function-re '(2 'font-lock-function-name-face))
    ;; This would catch both declarations and calls.
    ;(cons (concat
    ;       "\\(^\\|[ \t.;{(]\\)\\("
@@ -223,11 +228,7 @@ From Core JavaScript Guide 1.5, Chapter 2 (Values, Variables and Literals):
    ;      '(2 'font-lock-function-name-face))
 
    ;; Variables and constants.
-   (cons (concat
-          "\\(^\\|[ \t;{(]\\)\\(const\\|var\\)[ \t]+\\("
-          javascript-identifier
-          "\\)")
-         '(3 'font-lock-variable-name-face))
+   (cons javascript-variable-re '(3 'font-lock-variable-name-face))
    ;; This would catch more of them and properties as well.
    ;(cons (concat
    ;       "\\(^\\|[ \t(\\[\\.{;]\\)\\("
@@ -240,6 +241,15 @@ From Core JavaScript Guide 1.5, Chapter 2 (Values, Variables and Literals):
 
 ;; ------------------------------------------------------------------------ ;;
 
+(defvar javascript-imenu-generic-expression
+  `((nil ,javascript-function-re 2)
+    ;; ("Variables" ,javascript-variable-re 3)
+    )
+  "Imenu generic expression for JavaScript mode.
+See `imenu-generic-expression'.")
+
+;; ------------------------------------------------------------------------ ;;
+
 ;;;###autoload
 (defun javascript-mode ()
   "Major mode for editing JavaScript code.
@@ -247,37 +257,45 @@ From Core JavaScript Guide 1.5, Chapter 2 (Values, Variables and Literals):
 See the documentation for `c++-mode': JavaScript mode is an extension of it.
 Use the hook `javascript-mode-hook' to execute custom code when entering
 JavaScript mode.
+
 \\{javascript-mode-map}"
   (interactive)
 
   (let ((current-c++-mode-hook (and (boundp 'c++-mode-hook) c++-mode-hook)))
 
-    ; Temporarily disable the c++-mode hook; don't wanna run
-    ; it when loading up c++-mode.
+    ;; Temporarily disable the c++-mode hook; don't wanna run
+    ;; it when loading up c++-mode.
     (setq c++-mode-hook nil)
     (c++-mode)
 
-    ; Do our stuff.
+    ;; Do our stuff.
     (setq major-mode 'javascript-mode mode-name "JavaScript")
     (use-local-map javascript-mode-map)
     (setq local-abbrev-table javascript-mode-abbrev-table)
     (c-set-offset 'inher-cont '+)
 
-    ; GNU Emacs reportedly needs this for font locking to work properly.
+    ;; Change menu name.  Kudos to Geert Ribbers and Igor Rayak.
+    (easy-menu-remove '("C++"))
+    (easy-menu-add javascript-menu)
+
+    ;; GNU Emacs reportedly needs this for font locking to work properly.
     (unless (featurep 'xemacs)
       (set (make-local-variable 'font-lock-defaults)
            '(javascript-font-lock-keywords nil nil)))
 
-    ; cc-mode does not handle JavaScript prototype function declarations well.
-    ; Thanks to Sebastian Delmont.
+    ;; cc-mode does not handle JavaScript prototype function declarations well.
+    ;; Thanks to Sebastian Delmont.
     (set (make-local-variable 'c-lambda-key) "function")
     (c-set-offset 'inlambda 0)
 
-    ; Restore the original c++-mode-hook.
+    ;; imenu support.
+    (set (make-local-variable 'imenu-generic-expression)
+         javascript-imenu-generic-expression)
+
+    ;; Restore the original c++-mode-hook.
     (setq c++-mode-hook current-c++-mode-hook)
 
-    (run-hooks 'javascript-mode-hook)
-    ))
+    (run-hooks 'javascript-mode-hook)))
 
 ;; ------------------------------------------------------------------------ ;;
 
@@ -321,12 +339,12 @@ Usage examples:        command    arguments
 
 ;; ------------------------------------------------------------------------ ;;
 
-;;;###autoload
-(add-to-list 'auto-mode-alist '("\\.js$" . javascript-mode))
+;;;###autoload(add-to-list 'auto-mode-alist '("\\.js$" . javascript-mode))
+;;;###autoload(add-to-list 'auto-mode-alist '("\\.pac$" . javascript-mode))
 
 ;; Speedbar handling
 (if (fboundp 'speedbar-add-supported-extension)
-    (speedbar-add-supported-extension ".js"))
+    (speedbar-add-supported-extension '(".js" ".pac")))
 
 ;; ------------------------------------------------------------------------ ;;
 

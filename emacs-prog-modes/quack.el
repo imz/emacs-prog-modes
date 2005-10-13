@@ -1,11 +1,11 @@
 ;;; quack.el --- enhanced support for editing and running Scheme code
 
-(defconst quack-copyright    "Copyright (C) 2002-3 Neil W. Van Dyke")
+(defconst quack-copyright    "Copyright (C) 2002-2005 Neil W. Van Dyke")
 (defconst quack-copyright-2  "Portions Copyright (C) Free Software Foundation")
 ;; Emacs-style font-lock specs adapted from GNU Emacs 21.2 scheme.el.
 ;; Scheme Mode menu adapted from GNU Emacs 21.2 cmuscheme.el.
 
-(defconst quack-version      "0.20")
+(defconst quack-version      "0.28")
 (defconst quack-author-name  "Neil W. Van Dyke")
 (defconst quack-author-email "neil@neilvandyke.org")
 (defconst quack-web-page     "http://www.neilvandyke.org/quack/")
@@ -21,7 +21,7 @@ should have received a copy of the GNU General Public License along with Emacs;
 see the file `COPYING'.  If not, write to the Free Software Foundation, Inc.,
 59 Temple Place, Suite 330, Boston, MA 02111-1307, USA.")
 
-(defconst quack-cvsid "$Id: quack.el,v 1.331 2003/05/04 18:45:24 neil Exp $")
+(defconst quack-cvsid "$Id: quack.el,v 1.420 2005/05/14 10:40:25 neil Exp $")
 
 ;;; Commentary:
 
@@ -66,18 +66,17 @@ see the file `COPYING'.  If not, write to the Free Software Foundation, Inc.,
 ;;       * The `)' and `]' keys insert the character that agrees with the
 ;;         s-expression's opening character.
 ;;
+;;       * Automatic indenting options for Return key.
+;;
 ;;       * Mode for inspecting contents of PLT `.plt' package files, before
 ;;         releasing or installing the packages, or if one does not have PLT
 ;;         available.
 ;;
 ;;       * Command to open a Dired on a specified PLT collection.
 ;;
-;;     Quack was originally intended for PLT Scheme programmers who sometimes
-;;     prefer to use Emacs rather than DrScheme for writing code, and also for
-;;     people (especially students in underequipped schools) whose computers
-;;     are not powerful enough to run DrScheme.  The name "Quack" was a play on
-;;     the name of DrScheme.  Quack is no longer PLT-specific -- it now
-;;     endeavors to support all popular Scheme implementations.
+;;       * `compile' mode can navigate from PLT `setup-plt' errors.
+;;
+;;     The name "Quack" was a play on "DrScheme".
 ;;
 ;;     Quack is dedicated to Yosh, naturally.
 
@@ -86,15 +85,15 @@ see the file `COPYING'.  If not, write to the Free Software Foundation, Inc.,
 ;;     GNU Emacs 21 -- Yes.  Quack is developed under GNU Emacs 21 on a
 ;;     GNU/Linux system, which is the preferred platform for Quacksmokers.
 ;;     Quack should work under GNU Emacs 21 on any Un*x-like OS.  Reportedly,
-;;     Quack also works with GNU Emacs 21 on Mac OS X and Microsoft Windows NT,
-;;     but the author has no means of testing on those platforms.
+;;     Quack also works with GNU Emacs 21 on Mac OS X and Microsoft Windows
+;;     (NT, 2000, XP), but the author has no means of testing on those
+;;     platforms.
 ;;
 ;;     GNU Emacs 20 -- Mostly.  Some of the menus do not work properly, due to
-;;     what may be a bug in easymenu.el.  (The FSF is no longer supporting
-;;     Emacs 20, but let me know if you're still using it.)  Nested block
-;;     comments are not fontified correctly.  Pretty-lambda does not work.
-;;     Quack runs less efficiently in 20 than 21, due to the lack of standard
-;;     hash tables.
+;;     a bug in easymenu.el (which the FSF will not fix, since they no longer
+;;     support Emacs 20).  Nested block comments are not fontified correctly.
+;;     Pretty-lambda does not work.  Quack runs less efficiently in 20 than 21,
+;;     due to the lack of standard hash tables.
 ;;
 ;;     XEmacs 21 -- Mostly.  Block comment fontification is not yet supported
 ;;     under XEmacs 21, due to what appears to be a bug in 21.4 font-lock.
@@ -109,13 +108,19 @@ see the file `COPYING'.  If not, write to the Free Software Foundation, Inc.,
 ;;
 ;;         (require 'quack)
 ;;
-;;     Note to advanced Emacsers: Byte-compiled `quack.elc' files are not
-;;     interchangeable between Emacs implementations and major Emacs versions.
+;;     If you don't know what your Emacs load path is, try invoking the command
+;;     "C-h v load-path RET" or consulting the Emacs manual.
+;;
+;;     Note to advanced Emacsers: Byte-compiled `quack.elc' files generally are
+;;     *not* portable between Emacs implementations, nor between different
+;;     versions of the same implementation.
 ;;
 ;;     You will also need the GNU `wget' program, which Quack uses for
-;;     downloading SRFI indexes.
+;;     downloading SRFI indexes.  This popular program is included in most
+;;     GNU/Linux distributions and is available for most other platforms.
 ;;
-;;     Note to PLT Scheme users: The PLT manuals can be downloaded from
+;;     Note to PLT Scheme users: If you do not already have the PLT manuals
+;;     installed, they can be downloaded from 
 ;;     `http://download.plt-scheme.org/doc/' and installed in your PLT `doc'
 ;;     collection.  If Quack is not finding installed PLT manuals, then be sure
 ;;     that the `quack-pltcollect-dirs' variable contains the appropriate
@@ -149,7 +154,68 @@ see the file `COPYING'.  If not, write to the Free Software Foundation, Inc.,
 
 ;; HISTORY:
 ;;
-;;     Version 0.20 (04-May-2003)
+;;     Version 0.28 (2005-05-14)
+;;         * Added `quack-smart-open-paren-p'.
+;;         * Changed `scheme-indent-function' for `parameterize' from `defun'
+;;           to `1'.
+;;         * In `quack-pltish-keywords-to-fontify': added `quasiquote',
+;;           `unquote', and `unquote-splicing'.
+;;         * Added ".mzschemerc" to `auto-mode-alist'.
+;;         * Added a little extra threesemi fontification for Funcelit and
+;;           similar Texinfo markup formats.
+;;
+;;     Version 0.27 (2004-12-19)
+;;         * For Gambit-C, added REPL banner fontifying, `quack-manuals' entry,
+;;           and "gsi ~~/syntax-case.scm -" `quack-programs' entry.
+;;         * Changed "[PLT]" prefix on PLT manuals to "PLT", to make it easier
+;;           to type.
+;;         * Minor changes to reflect "MIT Scheme" becoming "MIT/GNU Scheme".
+;;
+;;     Version 0.26 (2004-07-14)
+;;         * Added fontifying of a bunch of "define-"* syntax from Chicken.
+;;
+;;     Version 0.25 (2004-07-09)
+;;         * Added `define-record-type' to `quack-pltish-keywords-to-fontify'.
+;;         * Added "csi -hygienic" to `quack-programs'.
+;;         * In `quack-manuals', replaced PLT-specific `r5rs' and `t-y-scheme'
+;;           with generic ones.
+;;         * Updated URL in `quack-manuals' for 3rd ed. of `tspl'.
+;;         * `quack-view-manual' completions no longer include symbols.
+;;         * `quack-view-manual' completion default is now "R5RS".
+;;
+;;     Version 0.24 (2004-05-09)
+;;         * Made `quack-pltish-keywords-to-fontify' and
+;;           `quack-emacs-keywords-to-fontify' custom changes update
+;;           immediately.  Bug reported by Taylor Campbell.
+;;         * Removed some non-syntax names from  
+;;           `quack-pltish-keywords-to-fontify'.
+;;         * Documentation changes.
+;;
+;;     Version 0.23 (2003-11-11)
+;;         * `quack-local-keywords-for-remote-manuals-p' can now have the value
+;;           of the symbol `always', to work around a defect in some versions
+;;           of Microsoft Windows.  Thanks to Bill Clementson.
+;;         * `quack-w3m-browse-url-other-window' no longer splits a `*w3m*'
+;;           buffer.
+;;         * Added indent and `quack-pltish-keywords-to-fontify' rules for
+;;           `c-lambda' and `c-declare'.
+;;
+;;     Version 0.22 (2003-07-03)
+;;         * `quack-newline-behavior' controls the RET key behavior in Scheme
+;;           buffers.
+;;         * In `quack-manuals', added Chez Scheme, and updated Chicken.
+;;         * Added error message navigation to `compile' for PLT `setup-plt'.
+;;         * Partial fix for Quack global menu disappearing from the main menu
+;;           bar in XEmacs.  Thought it used to work, but it doesn't in XEmacs
+;;           21.4.12.
+;;
+;;     Version 0.21 (2003-05-28)
+;;         * `quack-find-file' is faster in many cases due to fix to
+;;           `quack-backward-sexp'.
+;;         * Added auto-mode-alist for `.ccl', `.stk', and `.stklos' files.
+;;         * Indent rule additions/changes for `chicken-setup' and `unit/sig'.
+;;
+;;     Version 0.20 (2003-05-04)
 ;;         * Added indent and fontify for SRFI-8 "receive".
 ;;         * Added indent and fontify for additional PLT syntax.
 ;;         * Added `quack-fontify-threesemi-p'.
@@ -163,20 +229,20 @@ see the file `COPYING'.  If not, write to the Free Software Foundation, Inc.,
 ;;         * Several code quality improvements sent by Stefan Monnier will be
 ;;           in the next release.
 ;;
-;;     Version 0.19 (04-Mar-2003)
+;;     Version 0.19 (2003-03-04)
 ;;         * Commands such as `scheme-load-file' now start a Scheme process if
 ;;           none is found.
 ;;         * Bugfix for using `match-string-no-properties' when we meant
 ;;           `quack-match-string-no-properties'.  (Thanks to Noel Welsh.)
 ;;
-;;     Version 0.18 (02-Mar-2003)
+;;     Version 0.18 (2003-05-02)
 ;;         * Removed uses of `(regexp-opt LIST t)', since XEmacs21 does not
 ;;           create match data.  (Thanks to Garrett Mitchener for debugging.)
 ;;         * Added to `quack-programs' and `quack-manuals'.
 ;;         * Added pretty-case-lambda.
 ;;         * Changed PLT documentation URL function.
 ;;
-;;     Version 0.17 (03-Jan-2003)
+;;     Version 0.17 (2003-01-03)
 ;;         * Pretty-lambda is supported well under GNU Emacs 21, when using PLT
 ;;           Style fontification.  Enable via the Options menu.  (Based on
 ;;           approach by Stefan Monnier; suggested by Ray Racine.)
@@ -189,14 +255,14 @@ see the file `COPYING'.  If not, write to the Free Software Foundation, Inc.,
 ;;           package, `w3mnav' (`http://www.neilvandyke.org/w3mnav/').
 ;;           `quack-w3m-browse-url-other-window' has been added.
 ;;
-;;     Version 0.16 (16-Dec-2002)
+;;     Version 0.16 (2002-12-16)
 ;;         * `quack-insert-closing' now calls `blink-paren-function'.  (Thanks
 ;;           to Guillaume Marceau and Steve Elkins for reporting this.)
 ;;         * Now uses PLT 202 manuals.  Added "PLT Framework" manual.
 ;;         * Added `quack-pltish-module-defn-face'.
 ;;         * Added some PLTish font-lock keywords.
 ;;
-;;     Version 0.15 (21-Nov-2002)
+;;     Version 0.15 (2002-11-21)
 ;;         * "Keywords" are now fontified in PLT Style fontification mode.
 ;;         * Definition names are now blue by default in PLT Style.
 ;;         * Symbol literals with vertical bars are now fontified in PLT Style.
@@ -205,7 +271,7 @@ see the file `COPYING'.  If not, write to the Free Software Foundation, Inc.,
 ;;         * New `quack-quiet-warnings-p' option.
 ;;         * New `quack-pltish-class-defn-face' face.
 ;;
-;;     Version 0.14 (18-Oct-2002)
+;;     Version 0.14 (2002-10-18)
 ;;         * Fix for `quack-view-manual' interactive prompting (thanks to Marko
 ;;           Slyz for reporting this).
 ;;         * `quack-emacsw3m-go-next' and `quack-emacsw3m-go-prev' now work
@@ -216,10 +282,10 @@ see the file `COPYING'.  If not, write to the Free Software Foundation, Inc.,
 ;;         * We now call the canonical version of Emacs "GNU Emacs," instead of
 ;;           "FSF Emacs".
 ;;
-;;     Version 0.13 (21-Sep-2002)
+;;     Version 0.13 (2002-09-21)
 ;;         * Bugfix: No longer drop SRFI index entries on the floor.
 ;;
-;;     Version 0.12 (20-Sep-2002)
+;;     Version 0.12 (2002-09-20)
 ;;         * New "View SRFI" menu.  Select "Update SRFI Index" if the submenus
 ;;           "Draft", "Final", and "Withdrawn" are disabled.
 ;;         * Most options are now settable via "Options" menu.
@@ -234,7 +300,7 @@ see the file `COPYING'.  If not, write to the Free Software Foundation, Inc.,
 ;;           debugging after this release.
 ;;         * '[' and ']' keys work in emacs-w3m of MIT Scheme manuals.
 ;;
-;;     Version 0.11 (17-Sep-2002)
+;;     Version 0.11 (2002-09-17)
 ;;         * Menus now work under XEmacs.  Also now partly broken for Emacs 20.
 ;;         * New global "Quack" menu.  Disable with `quack-global-menu-p'.
 ;;         * New "View Manual" submenu under GNU Emacs 21 and XEmacs (GNU Emacs
@@ -250,7 +316,7 @@ see the file `COPYING'.  If not, write to the Free Software Foundation, Inc.,
 ;;         * `quack-about' command.
 ;;         * Fix to `quack-keyword-at-point'.
 ;;
-;;     Version 0.10 (11-Sep-2002)
+;;     Version 0.10 (2002-09-11)
 ;;         * `quack-view-srfi' now prompts with completion, including titles
 ;;           for all SRFIs.  The SRFI titles are fetched from the official SRFI
 ;;           Web site using the GNU Wget program, and cached locally.
@@ -266,7 +332,7 @@ see the file `COPYING'.  If not, write to the Free Software Foundation, Inc.,
 ;;         * Fix to make `quack-looking-at-backward' preserve match data.
 ;;         * Fix for benign bug in `quack-parent-sexp-search'.
 ;;
-;;     Version 0.9 (04-Sep-2002)
+;;     Version 0.9 (2002-09-04)
 ;;         * Quack now works under XEmacs 21, except no menus are currently
 ;;           defined (that will come in a later version) and block comments
 ;;           aren't fontified.
@@ -293,14 +359,14 @@ see the file `COPYING'.  If not, write to the Free Software Foundation, Inc.,
 ;;         * Renamed "collect" in PLT identifiers to "pltcollect".
 ;;         * `auto-mode-alist' set more aggressively.
 ;;
-;;     Version 0.8 (25-Aug-2002)
+;;     Version 0.8 (2002-08-25)
 ;;         * PLT package file viewing mode.  This is mainly used to easily
 ;;           inspect a ".plt" package before installing it via DrScheme or
 ;;           "setup-plt".
 ;;         * No longer warns about `font-lock-keywords' when `noweb-mode'
 ;;           package is installed.
 ;;
-;;     Version 0.7 (22-Aug-2002)
+;;     Version 0.7 (2002-08-22)
 ;;         * Now works on GNU Emacs 20 (though people are still encouraged to
 ;;           upgrade to GNU Emacs 21 if they are able).
 ;;         * `quack-manuals' now includes MIT Scheme and Chicken manuals
@@ -313,7 +379,7 @@ see the file `COPYING'.  If not, write to the Free Software Foundation, Inc.,
 ;;         * `quack-warning' messages get your attention.
 ;;         * `quack-pltrequire-at-point-data-1' search depth limited.
 ;;
-;;     Version 0.6 (20-Aug-2002)
+;;     Version 0.6 (2002-08-20)
 ;;         * `quack-find-file' now supports multi-line PLT `require' forms.
 ;;         * When `emacs-w3m' is used, the keys "[", "]", and "t" are bound to
 ;;           navigate through PLT manuals like in Info mode.
@@ -326,7 +392,7 @@ see the file `COPYING'.  If not, write to the Free Software Foundation, Inc.,
 ;;           (two can play at that game, `bee-mode'!).
 ;;         * To-do comments moved from the top of the file to throughout code.
 ;;
-;;     Version 0.5 (15-Aug-2002)
+;;     Version 0.5 (2002-08-15)
 ;;         * New `quack-find-file' permits quick navigation to files indicated
 ;;           by a PLT Scheme `require' form under the point.  Currently only
 ;;           works when the "(require" string is on the same line as point.
@@ -338,7 +404,7 @@ see the file `COPYING'.  If not, write to the Free Software Foundation, Inc.,
 ;;         * Unnecessary syntax table settings have been removed.
 ;;         * Reduced memory usage in some cases, via explicit GC calls.
 ;;
-;;     Version 0.4 (07-Aug-2002)
+;;     Version 0.4 (2002-08-07)
 ;;         * Functionality adapted from author's `giguile.el' package:
 ;;             - Enhanced `run-scheme' behavior.  `quack-run-mzscheme',
 ;;               `quack-run-mred', and `quack-remove-run-scheme-menu-item-p'
@@ -353,7 +419,7 @@ see the file `COPYING'.  If not, write to the Free Software Foundation, Inc.,
 ;;         * This code includes a start on toolbars and XEmacs21 portability,
 ;;           but neither feature is yet functional.
 ;;
-;;     Version 0.3 (01-Aug-2002)
+;;     Version 0.3 (2002-08-01)
 ;;         * PLT-style fontification added, except for quoted lists.  Emacs-
 ;;           style fontification still available; see `quack-fontify-style'.
 ;;         * `emacs-w3m' package support for lightweight viewing of PLT manuals
@@ -369,11 +435,11 @@ see the file `COPYING'.  If not, write to the Free Software Foundation, Inc.,
 ;;         * Bugfix for font-lock keywords getting set too early.
 ;;         * Now byte-compiles without warnings/errors.
 ;;
-;;     Version 0.2 (28-Jul-2002)
+;;     Version 0.2 (2002-07-28)
 ;;         * Manual keywords lookup.
 ;;         * Other minor changes.
 ;;
-;;     Version 0.1 (18-Jul-2002)
+;;     Version 0.1 (2002-07-18)
 ;;         * Initial release.
 
 ;; ADMONISHMENT TO IMPRESSIONABLE YOUNG SCHEME STUDENTS:
@@ -391,11 +457,12 @@ see the file `COPYING'.  If not, write to the Free Software Foundation, Inc.,
 
 (require 'advice)
 (require 'cmuscheme)
+(require 'compile)
 (require 'custom)
 (require 'easymenu)
+(require 'font-lock)
 (require 'scheme)
 (require 'thingatpt)
-(require 'font-lock)
 
 (unless (fboundp 'customize-save-variable)
   (autoload 'customize-save-variable "cus-edit"))
@@ -433,8 +500,7 @@ The local map in Scheme Mode and Inferior Scheme Mode buffers is used."
 
 (defcustom quack-global-menu-p t
   "*Whether to have a \"Quack\" menu always on the menu bar."
-  :type  'boolean
-  :group 'quack)
+  :type  'boolean  :group 'quack)
 
 (defcustom quack-tabs-are-evil-p t
   "*Whether Quack should avoid use of Tab characters in indentation."
@@ -470,10 +536,9 @@ If non-nil, overrides that variable for URLs viewed by `quack-browse-url'."
 
   '(
 
-    ;; TODO: Make this into `plt-r5rs' as soon as we can prefix the PLT manual
-    ;;       IDs with `plt-', then make a generic `r5rs'.
-
-    (r5rs       "Revised^5 Report on the Algorithmic Language Scheme" plt t)
+    (r5rs "R5RS"
+          "http://www.schemers.org/Documents/Standards/R5RS/HTML/"
+          nil)
 
     (bigloo
      "Bigloo"
@@ -481,45 +546,57 @@ If non-nil, overrides that variable for URLs viewed by `quack-browse-url'."
      ;;"file:///usr/share/doc/bigloo/manuals/bigloo.html"
      nil)
 
+    (chez
+     "Chez Scheme User's Guide"
+     "http://www.scheme.com/csug/index.html"
+     nil)
+
     (chicken
      "Chicken User's Manual"
-     "http://www.call-with-current-continuation.org/manual.html"
+     "http://www.call-with-current-continuation.org/manual/manual.html"
      ;;"file:///usr/share/doc/chicken/manual.html"
      nil)
+
+    (gambit
+     "Gambit-C home page"
+     "http://www.iro.umontreal.ca/~gambit/")
 
     (gauche
      "Gauche Reference Manual"
      "http://www.shiro.dreamhost.com/scheme/gauche/man/gauche-refe.html"
      nil)
 
-    (mit-ref
-     "MIT Scheme Reference"
-     "http://www.swiss.ai.mit.edu/projects/scheme/documentation/scheme.html"
+    (mitgnu-ref
+     "MIT/GNU Scheme Reference"
+     "http://www.gnu.org/software/mit-scheme/documentation/scheme.html"
+     ;;"http://www.swiss.ai.mit.edu/projects/scheme/documentation/scheme.html"
+
      ;;"file:///usr/share/doc/mit-scheme/html/scheme.html"
      nil)
 
-    (mit-user
-     "MIT Scheme User's Manual"
-     "http://www.swiss.ai.mit.edu/projects/scheme/documentation/user.html"
+    (mitgnu-user
+     "MIT/GNU Scheme User's Manual"
+     "http://www.gnu.org/software/mit-scheme/documentation/user.html"
+     ;;"http://www.swiss.ai.mit.edu/projects/scheme/documentation/user.html"
      ;;"file:///usr/share/doc/mit-scheme/html/user.html"
      nil)
 
-    (mit-sos
-     "MIT Scheme SOS Reference Manual"
-     "http://www.swiss.ai.mit.edu/projects/scheme/documentation/sos.html"
+    (mitgnu-sos
+     "MIT/GNU Scheme SOS Reference Manual"
+     "http://www.gnu.org/software/mit-scheme/documentation/sos.html"
+     ;;"http://www.swiss.ai.mit.edu/projects/scheme/documentation/sos.html"
      ;;"file:///usr/share/doc/mit-scheme/html/sos.html"
      nil)
 
-    ;; TODO: Prefix these with `plt-'.
-
-    (mzscheme   "PLT MzScheme: Language Manual"                       plt t)
-    (mzlib      "PLT MzLib: Libraries Manual"                         plt t)
-    (mred       "PLT MrEd: Graphical Toolbox Manual"                  plt t)
-    (framework  "PLT Framework: GUI Application Framework"            plt t)
-    (drscheme   "PLT DrScheme: Programming Environment Manual"        plt nil)
-    (insidemz   "PLT Inside PLT MzScheme"                             plt nil)
-    (tools      "PLT Tools: DrScheme Extension Manual"                plt nil)
-    (mzc        "PLT mzc: MzScheme Compiler Manual"                   plt nil)
+    (plt-mzscheme  "PLT MzScheme: Language Manual"                plt t)
+    (plt-mzlib     "PLT MzLib: Libraries Manual"                  plt t)
+    (plt-mred      "PLT MrEd: Graphical Toolbox Manual"           plt t)
+    (plt-framework "PLT Framework: GUI Application Framework"     plt t)
+    (plt-drscheme  "PLT DrScheme: Programming Environment Manual" plt nil)
+    (plt-insidemz  "PLT Inside PLT MzScheme"                      plt nil)
+    (plt-tools     "PLT Tools: DrScheme Extension Manual"         plt nil)
+    (plt-mzc       "PLT mzc: MzScheme Compiler Manual"            plt t)
+    (plt-r5rs      "PLT R5RS"                                     plt t)
 
     (scsh
      "Scsh Reference Manual"
@@ -532,26 +609,27 @@ If non-nil, overrides that variable for URLs viewed by `quack-browse-url'."
      "http://sisc.sourceforge.net/manual/html/"
      nil)
 
-    (t-y-scheme "Teach Yourself Scheme in Fixnum Days"                plt nil)
-
-    (htdp    "How to Design Programs"
-             "http://www.htdp.org/"
-             nil)
-    (htus    "How to Use Scheme"
-             "http://www.htus.org/"
-             nil)
-    (tspl    "Scheme Programming Language (Dybvig)"
-             "http://www.scheme.com/tspl2d/index.html"
-             nil)
-    (sicp    "Structure and Interpretation of Computer Programs"
-             "http://mitpress.mit.edu/sicp/full-text/book/book-Z-H-4.html"
-             nil)
-    (slib    "SLIB"
-             "http://swissnet.ai.mit.edu/~jaffer/SLIB.html"
-             nil)
-    (faq     "Scheme Frequently Asked Questions"
-             "http://www.schemers.org/Documents/FAQ/"
-             nil))
+    (htdp       "How to Design Programs"
+                "http://www.htdp.org/"
+                nil)
+    (htus       "How to Use Scheme"
+                "http://www.htus.org/"
+                nil)
+    (t-y-scheme "Teach Yourself Scheme in Fixnum Days"
+                "http://www.ccs.neu.edu/home/dorai/t-y-scheme/t-y-scheme.html"
+                nil)
+    (tspl       "Scheme Programming Language (Dybvig)"
+                "http://www.scheme.com/tspl/"
+                nil)
+    (sicp       "Structure and Interpretation of Computer Programs"
+                "http://mitpress.mit.edu/sicp/full-text/book/book-Z-H-4.html"
+                nil)
+    (slib       "SLIB"
+                "http://swissnet.ai.mit.edu/~jaffer/SLIB.html"
+                nil)
+    (faq        "Scheme Frequently Asked Questions"
+                "http://www.schemers.org/Documents/FAQ/"
+                nil))
   "*List of specifications of manuals that can be viewed.
 
 Each manual specification is a list of four elements:
@@ -580,8 +658,14 @@ If LOCATION is a URL, then USE-KEYWORDS-P must be `nil'."
   "*If non-nil, Quack will use canonical remote Web URLs when there is a local
 keyword file for a PLT manual but no local HTML files.  (This feature was
 prompted by the Debian 200.2-3 package for MzScheme, which includes keyword
-files but not HTML files.)"
-  :type       'boolean
+files but not HTML files.)  If the symbol `always', then Quack will always use
+remote Web manuals for keywords lookup, even if local HTML files exist, as a
+workaround for how some versions of Emacs interact with some versions of
+Microsoft Windows \(inexplicably discarding the fragment identifier from `file'
+scheme URI\)."
+  :type       '(choice (const :tag "Permit"    t)
+                       (const :tag "Forbid"     nil)
+                       (const :tag "Always" always))
   :group      'quack
   :set        'quack-custom-set
   :initialize 'custom-initialize-default)
@@ -648,32 +732,44 @@ This only has effect when `quack-fontify-style' is `plt'."
   :initialize 'custom-initialize-default)
 
 (defcustom quack-pltish-keywords-to-fontify
-  ;; TODO: These are currently R5RS special syntax plus a bunch of PLT,
-  ;;       especially PLT 200 class.ss.  The dumbness of this kind of
-  ;;       highlighting without regard to context is not really satisfactory.
-  '("and" "begin" "begin0" "call-with-current-continuation"
-    "call-with-input-file" "call-with-output-file" "call/cc" "case"
-    "case-lambda" "class" "class*" "class*/names"
-    "compound-unit/sig"
-    "cond" "cond-expand" "define"
-    "define-macro" "define-module" "define-public" "define-signature"
-    "define-struct" "define-syntax" "define-values"
-    "define-values/invoke-unit/sig" "define/contract" "define/override"
-    "define/private" "define/public" "delay" "do" "else" "exit-handler" "field"
-    "if" "import" "inherit" "inherit-field" "init" "init-field" "init-rest"
-    "instantiate" "interface" "lambda" "let" "let*" "let*-values" "let+"
-    "let-syntax" "let-values" "let/ec" "letrec" "letrec-values" "letrec-syntax"
-    "mixin" "module" "opt-lambda" "or" "override" "override*"
-    "namespace-variable-bind/invoke-unit/sig" "parameterize" "private"
-    "private*" "protect" "provide" "provide-signature-elements"
-    "provide/contract" "public" "public*" "quote" "receive" "rename" "require"
-    "require-for-syntax" "send" "send*" "set!" "set!-values"
-    "signature->symbols" "super-instantiate" "syntax" "syntax-case"
-    "syntax-error" "syntax-rules" "unit/sig" "unless" "when" "with-handlers"
-    "with-method" "with-syntax" )
+  ;; TODO: These are currently R5RS and some SRFI special syntax plus a bunch
+  ;; of PLT, especially PLT 200 class.ss, and some "define-"* variants from
+  ;; various dialects.  The dumbness of this kind of highlighting without
+  ;; regard to context is not really satisfactory.
+  '(
+
+    "and" "begin" "begin0" "c-declare" "c-lambda" "case" "case-lambda" "class"
+    "class*" "class*/names" "class100" "class100*" "compound-unit/sig" "cond"
+    "cond-expand" "define" "define-class" "define-const-structure"
+    "define-constant" "define-embedded" "define-entry-point" "define-external"
+    "define-foreign-record" "define-foreign-type" "define-foreign-variable"
+    "define-generic" "define-generic-procedure" "define-inline"
+    "define-location" "define-macro" "define-method" "define-module"
+    "define-opt" "define-public" "define-reader-ctor" "define-record"
+    "define-record-printer" "define-record-type" "define-signature"
+    "define-struct" "define-structure" "define-syntax" "define-syntax-set"
+    "define-values" "define-values/invoke-unit/sig" "define/contract"
+    "define/override" "define/private" "define/public" "delay" "do" "else"
+    "exit-handler" "field" "if" "import" "inherit" "inherit-field" "init"
+    "init-field" "init-rest" "instantiate" "interface" "lambda" "let" "let*"
+    "let*-values" "let+" "let-syntax" "let-values" "let/ec" "letrec"
+    "letrec-values" "letrec-syntax" "match-lambda" "match-lambda*" "match-let"
+    "match-let*" "match-letrec" "match-define" "mixin" "module" "opt-lambda"
+    "or" "override" "override*" "namespace-variable-bind/invoke-unit/sig"
+    "parameterize" "private" "private*" "protect" "provide"
+    "provide-signature-elements" "provide/contract" "public" "public*"
+    "quasiquote" "quote" "receive" "rename" "require" "require-for-syntax"
+    "send" "send*" "set!" "set!-values" "signature->symbols"
+    "super-instantiate" "syntax-case" "syntax-case*" "syntax-error"
+    "syntax-rules" "unit/sig" "unless" "unquote" "unquote-splicing" "when"
+    "with-handlers" "with-method" "with-syntax"
+
+    )
   "*Scheme keywords to fontify when `quack-fontify-style' is `plt'."
-  :type  '(repeat string)
-  :group 'quack)
+  :type       '(repeat string)
+  :group      'quack
+  :set        'quack-custom-set
+  :initialize 'custom-initialize-default)
 
 (defcustom quack-emacsish-keywords-to-fontify
   '("and" "begin" "begin0" "call-with-current-continuation"
@@ -686,8 +782,10 @@ This only has effect when `quack-fontify-style' is `plt'."
     "syntax-case" "syntax-error" "syntax-rules" "unit/sig" "unless" "when"
     "with-syntax")
   "*Scheme keywords to fontify when `quack-fontify-style' is `emacs'."
-  :type  '(repeat string)
-  :group 'quack)
+  :type       '(repeat string)
+  :group      'quack
+  :set        'quack-custom-set
+  :initialize 'custom-initialize-default)
 
 (defcustom quack-fontify-threesemi-p t
   "*Whether three-semicolon comments should be fontified differently."
@@ -712,9 +810,8 @@ unavailable for your system, please notify the Quack author."
   :initialize 'custom-initialize-default)
 
 (defcustom quack-programs
-  '("bigloo" "csi" "gosh" "gsi" "guile" "kawa" "mit-scheme" "mred -z"
-    "mzscheme" "mzscheme -M errortrace" "rs" "scheme" "scheme48" "scsh" "sisc"
-    "stklos" "sxi")
+  '("bigloo" "csi" "csi -hygienic" "gosh" "gsi" "gsi ~~/syntax-case.scm -"
+    "guile" "kawa" "mit-scheme" "mred -z" "mzscheme" "mzscheme -M errortrace" "rs" "scheme" "scheme48" "scsh" "sisc" "stklos" "sxi")
   "List of Scheme interpreter programs that can be used with `run-scheme'.
 
 These names will be accessible via completion when `run-scheme' prompts for
@@ -766,6 +863,27 @@ splitting the current window if necessary.
 
 When `quack-switch-to-scheme-method' is `own-frame', `switch-to-scheme' will
 warp the mouse pointer to the frame displaying the Scheme process buffer."
+  :group 'quack
+  :type  'boolean)
+
+(defcustom quack-newline-behavior 'newline-indent
+  "*Behavior of the RET key in Scheme-Mode buffers.  The value is one of three
+symbols: `newline' inserts a normal newline, `newline-indent' \(the default\)
+inserts a newline and leaves the point properly indented on the new line, and
+`indent-newline-indent' indents the current line before inserting a newline and
+indenting the new one."
+  :type '(choice (const 'newline)
+                 (const 'newline-indent)
+                 (const 'indent-newline-indent))
+  :group 'quack)
+
+(defcustom quack-smart-open-paren-p nil
+  "The `[' can be used to insert `(' characters.
+Actually, this just makes the `(' and '[' keys both insert `(', unless given a
+prefix argument.  This makes typing parens easier on typical keyboards for
+which `(' requires a shift modifier but `[' does not.  A later version of Quack
+might add actual \"smart\" support for automatic PLT-esque insertion of `['
+instead of `(' in some syntactic contexts."
   :group 'quack
   :type  'boolean)
 
@@ -881,17 +999,17 @@ For PLT-style when `quack-pltish-fontify-keywords-p' is non-nil."
 
 (defconst quack-threesemi-h1-face 'quack-threesemi-h1-face)
 (defface  quack-threesemi-h1-face
-  '((t (:family "Helvetica" :height 1.4 :size "24pt")))
+  '((t (:bold t :family "Helvetica" :height 1.4 :size "20pt")))
   "Face used for H1 headings in `;;;' text."
   :group 'quack)
 
-(defconst quack-threesemi-h2-face 'quack-threesemi-h1-face)
+(defconst quack-threesemi-h2-face 'quack-threesemi-h2-face)
 (defface  quack-threesemi-h2-face
-  '((t (:family "Helvetica" :height 1.2 :size "20pt")))
+  '((t (:bold t :family "Helvetica" :height 1.2 :size "16pt")))
   "Face used for H2 headings in `;;;' text."
   :group 'quack)
 
-(defconst quack-threesemi-h3-face 'quack-threesemi-h1-face)
+(defconst quack-threesemi-h3-face 'quack-threesemi-h3-face)
 (defface  quack-threesemi-h3-face
   '((t (:bold t :family "Helvetica")))
   "Face used for H3 headings in `;;;' text."
@@ -993,6 +1111,11 @@ For PLT-style when `quack-pltish-fontify-keywords-p' is non-nil."
   (if quack-gnuemacs-p
       `(define-key-after ,keymap ,key ,definition ,after)
     `(define-key ,keymap ,key (prog1 ,definition ,after))))
+
+(defmacro quack-delete-horizontal-space (&rest args)
+  (if (and quack-gnuemacs-p (>= emacs-major-version 21))
+      `(delete-horizontal-space ,@args)
+    `(delete-horizontal-space)))
 
 (defmacro quack-match-string-no-properties (&rest args)
   `(,(if quack-xemacs-p 'match-string 'match-string-no-properties) ,@args))
@@ -1170,6 +1293,8 @@ For PLT-style when `quack-pltish-fontify-keywords-p' is non-nil."
 
 (defun quack-without-side-whitespace (str)
   ;; Copied from `padr-str-trim-ws' by author.
+  ;;
+  ;; TODO: Don't make an intermediate string.  Use regexp match start position.
   (save-match-data
     (if (string-match "^[ \t\n\r]+" str)
         (setq str (substring str (match-end 0))))
@@ -1192,6 +1317,8 @@ For PLT-style when `quack-pltish-fontify-keywords-p' is non-nil."
 (defun quack-backward-sexp ()
   ;; Returns non-nil iff point was in a string literal or comment.
   (interactive)
+  (when (bobp)
+    (error "beginning of buffer"))
   (save-match-data
     (let* ((orig (point))
            (bol  (progn (beginning-of-line) (point))))
@@ -1358,7 +1485,10 @@ For PLT-style when `quack-pltish-fontify-keywords-p' is non-nil."
 
 (defun quack-w3m-browse-url-other-window (url &optional new-window)
   (interactive (eval '(browse-url-interactive-arg "URL: ")))
-  (switch-to-buffer-other-window (current-buffer))
+  (unless (string= (buffer-name) "*w3m*")
+    (switch-to-buffer-other-window (current-buffer)))
+  ;; TODO: If `*w3m*' buffer is visible in current frame or other frame,
+  ;;       switch to that, for Emacsen that don't do that by default.
   (eval '(w3m-browse-url url nil)))
 
 ;; Web Getting:
@@ -1433,6 +1563,8 @@ For PLT-style when `quack-pltish-fontify-keywords-p' is non-nil."
 
 (defun quack-temp-dir ()
   (file-name-as-directory (expand-file-name "tmp" quack-dir)))
+
+;; TODO: Make sure this gets executed in load phase even if byte-compiled.
 
 (random t)
 
@@ -1689,8 +1821,7 @@ For PLT-style when `quack-pltish-fontify-keywords-p' is non-nil."
 
 (defun quack-pltrequire-at-point-data-2 ()
   (save-match-data
-    (when (thing-at-point-looking-at
-           quack-pltrequire-at-point-data-2-re)
+    (when (thing-at-point-looking-at quack-pltrequire-at-point-data-2-re)
       (let* ((read-start (match-beginning 2))
              (parts-pt   (- (point) read-start))
              (parts      (buffer-substring-no-properties read-start
@@ -1739,6 +1870,25 @@ For PLT-style when `quack-pltish-fontify-keywords-p' is non-nil."
                          (quack-warning "Cannot find collection %S" collect))
                        nil)))))))))))
 
+;; Indenting Newline:
+
+(defun quack-newline (&optional arg)
+  (interactive "*P")
+  (if (eq quack-newline-behavior 'newline)
+      (newline arg)
+    (if (eq quack-newline-behavior 'indent-newline-indent)
+        (lisp-indent-line)
+      (unless (eq quack-newline-behavior 'newline-indent)
+        (error "invalid quack-newline-behavior value: %s"
+               quack-newline-behavior)))
+    (let ((n (prefix-numeric-value arg)))
+      (when (> n 0)
+        (while (> n 0)
+          (setq n (1- n))
+          (quack-delete-horizontal-space t)
+          (newline))
+        (lisp-indent-line)))))
+
 ;; Agreeing-Paren Insert:
 
 ;; TODO: Make paren-matching within comments limit seaching to within comments,
@@ -1767,6 +1917,20 @@ For PLT-style when `quack-pltish-fontify-keywords-p' is non-nil."
 (defun quack-insert-closing-bracket (&optional prefix)
   (interactive "P")
   (quack-insert-closing prefix ?\] ?\( ?\)))
+
+;; Opening-Paren Insert:
+
+(defun quack-insert-opening (prefix char)
+  (insert (if (or prefix (not quack-smart-open-paren-p)) char ?\())
+  (when blink-paren-function (funcall blink-paren-function)))
+
+(defun quack-insert-opening-paren (&optional prefix)
+  (interactive "P")
+  (quack-insert-opening prefix ?\())
+
+(defun quack-insert-opening-bracket (&optional prefix)
+  (interactive "P")
+  (quack-insert-opening prefix ?\[))
 
 ;; Definition Lambda Syntax Toggling:
 
@@ -2023,7 +2187,7 @@ follows draft,since a final version supercedes a draft version).")
 (defun quack-update-srfi-index ()
   (interactive)
   (quack-activity
-   "Updating SRFI index..."
+   "Updating SRFI index"
    (quack-download-srfi-subindex-files)))
 
 (defun quack-download-srfi-subindex-files ()
@@ -2031,7 +2195,7 @@ follows draft,since a final version supercedes a draft version).")
   (mapcar (function
            (lambda (kind)
              (quack-activity
-              (format "Downloading %s SRFI subindex..." kind)
+              (format "Downloading %s SRFI subindex" kind)
               (quack-web-get-to-file (quack-srfi-subindex-master-url kind)
                                      (quack-srfi-subindex-file       kind)))))
           quack-srfi-subindex-kinds))
@@ -2290,10 +2454,13 @@ follows draft,since a final version supercedes a draft version).")
       (cond
        ;; If the location is symbol `plt', handle manual as PLT bundled.
        ((eq loc 'plt)
-        (let ((web-base   (concat
-                           ;;"http://download.plt-scheme.org/doc/202/html/"
+        (let* ((plt-name (let ((s (symbol-name sym)))
+                           (if (string-match "\\`plt-\\(.+\\)\\'" s)
+                               (match-string 1 s)
+                             s)))
+               (web-base   (concat
                            "http://download.plt-scheme.org/doc/"
-                           (symbol-name sym)
+                           plt-name
                            "/"))
               (index-name "index.htm")
               (col-dirs   quack-pltcollect-dirs))
@@ -2303,7 +2470,7 @@ follows draft,since a final version supercedes a draft version).")
           ;; enable and disable keywords searching for a particular manual
           ;; without us having to change `quack-docs'.
           (while (and col-dirs (not (and kw-file kw-base start-url)))
-            (let ((dir (expand-file-name (symbol-name sym)
+            (let ((dir (expand-file-name plt-name
                                          (expand-file-name "doc"
                                                            (car col-dirs)))))
               (setq col-dirs (cdr col-dirs))
@@ -2343,19 +2510,15 @@ follows draft,since a final version supercedes a draft version).")
               ;; directory, on the assumption that a local copy of HTML missing
               ;; a keywords file is suspect, and that the Web version is
               ;; therefore preferable.
-              (unless kw-base
-                (if quack-local-keywords-for-remote-manuals-p
-                    (setq kw-base web-base)
-                  ;;(when kw-p
-                  ;;  (quack-warning
-                  ;;   "Found manual keywords file %S but no HTML."
-                  ;;   kw-file))
-                  ))
+              (when (or (eq quack-local-keywords-for-remote-manuals-p 'always)
+                        (and (not kw-base)
+                             quack-local-keywords-for-remote-manuals-p))
+                (setq kw-base web-base))
             ;; We don't have a keywords file, so warn if the user wanted
             ;; keywords for this manual.
             (when kw-p
               (quack-warning "Could not find keywords file for manual \"%S\"."
-                             sym)))))
+                             plt-name)))))
        ;; The location is an unrecognized symbol, so just barf.
        (t (quack-internal-error))))
      ;; The location is something other than a string or symbol, so just barf.
@@ -2430,7 +2593,7 @@ follows draft,since a final version supercedes a draft version).")
          ;; Note: We make the hashtable equal to the length of the read list of
          ;; keyword forms so that it will be at least large enough for all the
          ;; keywords without being excessively overlarge, and without having to
-         ;; resizes or a counting pass or intermediate representation.  The
+         ;; do resizes or a counting pass or intermediate representation.  The
          ;; hashtable will be a little larger than necessary when there are
          ;; multiple keyword forms for the same keyword.  In a test with
          ;; MzScheme 200.2, the hashtable used/size for "mzscheme" manual was
@@ -2532,7 +2695,7 @@ follows draft,since a final version supercedes a draft version).")
     (let* ((completes (or (quack-manuals-completes)
                           (error
                            "Sorry, variable \"quack-manuals\" is empty.")))
-           (default   "mzscheme")
+           (default   "R5RS")
            (input     (let ((completion-ignore-case t))
                         (completing-read
                          (format "Quack Manual (default %S): " default)
@@ -2582,8 +2745,10 @@ follows draft,since a final version supercedes a draft version).")
                        )
                    (setq completes
                          (cons (cons (quack-doc-get-title doc) sym)
-                               (cons (cons (symbol-name sym) sym)
-                                     completes))))))
+                               ;;(cons (cons (symbol-name sym) sym)
+                                     completes
+                                     ;;)
+                                     )))))
               (quack-docs))
       (setq quack-manuals-completes-cache (reverse completes))))
   quack-manuals-completes-cache)
@@ -2859,10 +3024,16 @@ Can be used in your `~/.emacs' file something like this:
                           auto-mode-alist)
                   (reverse retained)))))
 
-(quack-add-auto-mode-alist '(("\\.plt\\'" . quack-pltfile-mode)
-                             ("\\.sch\\'" . scheme-mode)
-                             ("\\.scm\\'" . scheme-mode)
-                             ("\\.ss\\'"  . scheme-mode)))
+(quack-add-auto-mode-alist '(("\\.ccl\\'"    . scheme-mode)
+                             ("\\.sch\\'"    . scheme-mode)
+                             ("\\.scm\\'"    . scheme-mode)
+                             ("\\.ss\\'"     . scheme-mode)
+                             ("\\.stk\\'"    . scheme-mode)
+                             ("\\.stklos\\'" . scheme-mode)
+                             ;;
+                             ("/\\.mzschemerc\\'" . scheme-mode)
+                             ;; Non-Scheme:
+                             ("\\.plt\\'"    . quack-pltfile-mode)))
 
 ;; Syntax Table:
 
@@ -2914,8 +3085,11 @@ Can be used in your `~/.emacs' file something like this:
 ;; Indent Properties:
 
 (put 'begin0            'scheme-indent-function 1)
+(put 'c-declare         'scheme-indent-function 0)
+(put 'c-lambda          'scheme-indent-function 2)
 (put 'case-lambda       'scheme-indent-function 0)
 (put 'catch             'scheme-indent-function 1)
+(put 'chicken-setup     'scheme-indent-function 1)
 (put 'class             'scheme-indent-function 'defun)
 (put 'class*            'scheme-indent-function 'defun)
 (put 'compound-unit/sig 'scheme-indent-function 0)
@@ -2928,14 +3102,14 @@ Can be used in your `~/.emacs' file something like this:
 (put 'mixin             'scheme-indent-function 2)
 (put 'module            'scheme-indent-function 'defun)
 (put 'opt-lambda        'scheme-indent-function 1)
-(put 'parameterize      'scheme-indent-function 'defun)
+(put 'parameterize      'scheme-indent-function 1)
 (put 'receive           'scheme-indent-function 2)
 (put 'send*             'scheme-indent-function 1)
 (put 'sigaction         'scheme-indent-function 1)
 (put 'syntax-case       'scheme-indent-function 2)
 (put 'syntax/loc        'scheme-indent-function 'defun)
 (put 'unit              'scheme-indent-function 'defun)
-(put 'unit/sig          'scheme-indent-function 1)
+(put 'unit/sig          'scheme-indent-function 2)
 (put 'unless            'scheme-indent-function 1)
 (put 'when              'scheme-indent-function 1)
 (put 'while             'scheme-indent-function 1)
@@ -3025,6 +3199,14 @@ Can be used in your `~/.emacs' file something like this:
      ,(quack-bool-menuitem "Remember New Programs"
                            quack-remember-new-programs-p)
      "---"
+     ("Newline Behavior"
+      ,@(quack-radio-menuitems
+         quack-newline-behavior
+         (("Newline"               . newline)
+          ("Newline-Indent"        . newline-indent)
+          ("Indent-Newline-Indent" . indent-newline-indent))))
+     ,(quack-bool-menuitem "Smart Open-Paren"
+                           quack-smart-open-paren-p)
      ("Switch-to-Scheme Method"
       ,@(quack-radio-menuitems quack-switch-to-scheme-method
                                (("Other Window"       . other-window)
@@ -3075,8 +3257,12 @@ Can be used in your `~/.emacs' file something like this:
        :selected (not (assq quack-browse-url-browser-function
                             quack-browser-radio-alist))])
      ,(quack-bool-menuitem "Tab Characters are Evil" quack-tabs-are-evil-p)
-     ,(quack-bool-menuitem "Local Keywords for Remote Manuals"
-                           quack-local-keywords-for-remote-manuals-p)
+     ("Local Keywords for Remote Manuals"
+      ,@(quack-radio-menuitems
+         quack-local-keywords-for-remote-manuals-p
+         (("Permit" . t)
+          ("Forbid" . nil)
+          ("Always" . always))))
      ["PLT Collection Directories..."
       (customize-option 'quack-pltcollect-dirs)]
      "---"
@@ -3090,18 +3276,32 @@ Can be used in your `~/.emacs' file something like this:
     ["View Keyword Docs..."       quack-view-keyword-docs]
     ["Dired on PLT Collection..." quack-dired-pltcollect]))
 
-;; TODO: We should make sure the user's custom settings have been loaded before
-;;       we do this.
-(when quack-global-menu-p
-  (quack-when-gnuemacs
-   (unless (assq 'Quack menu-bar-final-items)
-     (setq menu-bar-final-items (cons 'Quack menu-bar-final-items)))
-   (easy-menu-define quack-global-menu global-map ""
-     quack-global-menuspec))
-  (quack-when-xemacs
-   (delete-menu-item '("Quack") default-menubar)
-   (add-submenu nil quack-global-menuspec "Help" default-menubar)
-   (set-menubar-dirty-flag)))
+(defun quack-install-global-menu ()
+  (when quack-global-menu-p
+    (quack-when-gnuemacs
+     (unless (assq 'Quack menu-bar-final-items)
+       (setq menu-bar-final-items (cons 'Quack menu-bar-final-items)))
+     (easy-menu-define quack-global-menu global-map ""
+       quack-global-menuspec))
+    (quack-when-xemacs
+     ;; Die! Die! Die!
+     ;;(mapcar (function (lambda (n)
+     ;;(delete-menu-item '("Quack") n)
+     ;;(add-submenu nil quack-global-menuspec "Help" n)))
+     ;;(list 
+     ;;;;current-menubar 
+     ;;default-menubar
+     ;;))
+     (delete-menu-item '("Quack") current-menubar)
+     (add-submenu nil quack-global-menuspec "Help" current-menubar)
+     (set-menubar-dirty-flag))))
+
+;; TODO: We should make sure the user's custom settings have been loaded
+;; before we do this.
+(quack-install-global-menu)
+
+;; And die some more!
+;;(quack-when-xemacs (add-hook 'after-init-hook 'quack-install-global-menu))
 
 (defconst quack-scheme-mode-menuspec
   `("Scheme"
@@ -3147,12 +3347,12 @@ Can be used in your `~/.emacs' file something like this:
        (quack-srfi-menu t)
      ;; TODO: Move the generation of this fallback menu down to
      ;;       quack-srfi-menu.
-     (error '(("Draft"     :active nil "")
+     (error '(["Update SRFI Index" quack-update-srfi-index]
+              "---"
+              ("Draft"     :active nil "")
               ("Final"     :active nil "")
               ("Withdrawn" :active nil "")
-              ["Other SRFI..."     quack-view-srfi]
-              "---"
-              ["Update SRFI Index" quack-update-srfi-index])))))
+              ["Other SRFI..."     quack-view-srfi])))))
 
 (defun quack-defaultprogram-menufilter (arg)
   (quack-menufilter-return
@@ -3226,7 +3426,7 @@ Can be used in your `~/.emacs' file something like this:
   (set         sym value)
   (set-default sym value)
 
-  ;; TODO: Probably don't do this during Emacs initialization time, do avoid
+  ;; TODO: Probably don't do this during Emacs initialization time, to avoid
   ;;       unnecessary behavior like:
   ;;
   ;;           Loading ~/emacs/my-custom.el (source)...
@@ -3238,10 +3438,12 @@ Can be used in your `~/.emacs' file something like this:
   ;;           Loading ~/emacs/my-custom.el (source)...done
   
   ;; Update dependent program state.
-  (cond ((memq sym '(quack-fontify-style
+  (cond ((memq sym '(quack-emacsish-keywords-to-fontify
+                     quack-fontify-style
                      quack-fontify-threesemi-p
                      quack-pltish-fontify-definition-names-p
                      quack-pltish-fontify-keywords-p
+                     quack-pltish-keywords-to-fontify
                      quack-pretty-lambda-p))
          (quack-update-scheme-mode-buffers))
 
@@ -3281,10 +3483,637 @@ Can be used in your `~/.emacs' file something like this:
                                   (scheme-mode)))))
              (buffer-list)))))
 
-;; Tool Bar:
+;; Pretty Lambda:
+
+(defconst quack-lambda-char (make-char 'greek-iso8859-7 107))
+
+(defconst quack-pretty-lambda-supported-p
+  (and quack-gnuemacs-p (>= emacs-major-version 21)))
+
+;; Font Lock:
+
+(defconst quack-emacsish1-font-lock-keywords
+  `((,(concat "[[(]"
+              "\\("                     ; #<1
+              "define\\*?"
+                                        ; #=2 #=3
+              (quack-re-alt (quack-re-alt ""
+                                          "-generic"
+                                          "-generic-procedure"
+                                          "-method"
+                                          "-public"
+                                          "/override"
+                                          "/private"
+                                          "/public")
+                                        ; #=4
+                            (quack-re-alt "-macro"
+                                          "-syntax")
+                            "-class"
+                            "-module"
+                            "-signature"
+                            "-struct")
+              "\\)"                     ; #>1
+              "\\>"
+              "[ \t]*[[(]?"
+                                        ; #=5
+              "\\(\\sw+\\)?")
+     (1 font-lock-keyword-face)
+     (5 (cond ((match-beginning 3) font-lock-function-name-face)
+              ((match-beginning 4) font-lock-variable-name-face)
+              (t                   font-lock-type-face))
+        nil t))
+
+    ;; PLT module definitions.
+    ("[[(]\\(module\\)\\>[ \t]+\\(\\sw+\\)?"
+     (1 font-lock-keyword-face)
+     (2 font-lock-type-face nil t))))
+
+(defconst quack-emacsish2-font-lock-keywords
+  (append quack-emacsish1-font-lock-keywords
+          `(
+            ;; Misc. keywords.
+            (,(concat
+               "[[(]\\("
+               (regexp-opt quack-emacsish-keywords-to-fontify)
+               "\\)\\>")
+             . 1)
+            ;; Class specifiers in SOS, Stklos, Goops.
+            ("\\<<\\sw+>\\>" . font-lock-type-face)
+            ;; Colon keywords.
+            ("\\<:\\sw+\\>" . font-lock-builtin-face))))
+
+(defun quack-pltish-num-re (radix digit base16-p)
+  ;; These regexps started as a transliteration of the R5RS BNF to regular
+  ;; expressions, adapted for PLTisms, and with a few optimizations.
+  ;;
+  ;; PLTisms are that 'e' is not permitted as an exponent marker in base-16
+  ;; literals, and that "decimal-point" forms are permitted in any radix.
+  ;;
+  ;; There's obvious opportunity for further optimization, especially if we
+  ;; relax the accepted syntax a little.  These regexps have not been tested
+  ;; much, but, since this is only Emacs syntax fontification, false-positives
+  ;; and false-negatives will be obvious yet benign.
+  (let* ((uint    (concat digit "+#*"))
+         (sign    "[-+]?")
+         (suffix  (quack-re-optional (if base16-p "[sSfFdDlL]" "[eEsSfFdDlL]")
+                                     sign
+                                     "[0-9]+"))
+         (decimal (quack-re-alt
+                   (concat uint suffix)
+                   (concat "\\." digit "+#*" suffix)
+                   (concat digit
+                           "+"
+                           (quack-re-alt (concat "\\." digit "*")
+                                         "#+\\.")
+                           "#*")))
+         (ureal   (quack-re-alt uint
+                                (concat uint "/" uint)
+                                decimal))
+         (real    (concat sign ureal))
+         (complex (quack-re-alt
+                   (concat real
+                           (quack-re-alt (concat "@" real)
+                                         (quack-re-optional
+                                          "[-+]"
+                                          (quack-re-optional ureal)
+                                          "i")
+                                         ""))
+                   (concat "[-+]" (quack-re-optional ureal) "i")))
+         (exact   (quack-re-optional "#[eEiI]"))
+         (prefix  (quack-re-alt (concat radix exact)
+                                (concat exact radix))))
+    (concat "\\<" prefix complex "\\>")))
+
+(defconst quack-pltish-fls-base
+  `(
+    ("\\`\\(MrEd\\|Welcome to MzScheme\\) version [^\n]+" . quack-banner-face)
+    ("\\`Gambit Version 4\\.0[^\n]*" . quack-banner-face)
+    ("\\`Welcome to scsh [0-9][^\n]+\nType ,\\? for help[^\n]+"
+     . quack-banner-face)
+    ("\\`MIT/GNU Scheme running under [^\n]+" . quack-banner-face)
+    ;;("\\`; This is the CHICKEN interpreter - Version [^\n]+\n; (c)[^\n]+"
+    ;; . quack-banner-face)
+    ;;("\\`Scheme Microcode Version[^\n]+\nMIT Scheme[^\n]+\n\\([^\n]+\n\\)+" .
+    ;;quack-banner-face)
+    ("'\\sw+\\>"                . quack-pltish-selfeval-face)
+    ("'|\\(\\sw\\| \\)+|"       . quack-pltish-selfeval-face)
+    ;; Note: The first alternative in the following rule will misleadingly
+    ;; fontify some invalid syntax, such as "#\(x".
+    ("\\<#\\\\\\([][-`~!@#$%&*()_+=^{}\;:'\"<>,.?/|\\\\]\\|\\sw+\\>\\)"
+     . quack-pltish-selfeval-face)
+    ("[][()]"                   . quack-pltish-paren-face)
+    ("\\<#\\(t\\|f\\)\\>"       . quack-pltish-selfeval-face)
+    ("\\<+\\(inf.0\\|nan\\)\\>" . quack-pltish-selfeval-face)
+    ("\\<-inf.0\\>"             . quack-pltish-selfeval-face)
+    ,@(mapcar (function (lambda (args)
+                          (cons (apply 'quack-pltish-num-re args)
+                                'quack-pltish-selfeval-face)))
+              '(("#b"        "[01]"        nil)
+                ("#o"        "[0-7]"       nil)
+                ("\\(#d\\)?" "[0-9]"       nil)
+                ("#x"        "[0-9a-fA-F]" t)))))
+
+(defconst quack-pltish-fls-defnames
+  ;; TODO: Optimize these once they're fairly complete and correct.
+
+  ;; TODO: Would be nice to fontify binding names everywhere they are
+  ;;       introduced, such as in `let' and `lambda' forms.  That may require
+  ;;       real parsing to do reasonably well -- the kludges get too bad and
+  ;;       slow, and font-lock gets in the way more than it helps.
+
+  `(
+                                        ;,@quack-pltish-font-lock-keywords
+
+    ;; Lots of definition forms that start with "define".
+    (,(concat "[[(]"
+              "define\\*?"
+              ;; TODO: make this into regexp-opt
+              (quack-re-alt ""
+                            "-class"
+                            "-class"
+                            "-const-structure"
+                            "-constant"
+                            "-embedded"
+                            "-entry-point"
+                            "-external"
+                            "-foreign-record"
+                            "-foreign-type"
+                            "-foreign-variable"
+                            "-generic"
+                            "-generic-procedure"
+                            "-inline"
+                            "-location"
+                            "-macro"
+                            "-method"
+                            "-opt"
+                            "-public"
+                            "-reader-ctor"
+                            "-record"
+                            "-record-printer"
+                            "-record-type"
+                            "-signature"
+                            "-struct"
+                            "-structure"
+                            "-syntax"
+                            "-values"
+                            "/contract"
+                            "/override"
+                            "/private"
+                            "/public")
+              "\\>"
+              "[ \t]*[[(]?"
+              "\\(\\sw+\\)")
+     (2 (let ((name (quack-match-string-no-properties 2)))
+          (if (= (aref name (1- (length name))) ?%)
+              quack-pltish-class-defn-face
+            quack-pltish-defn-face))
+        nil t))
+
+    ;; `defmacro' and related SCM forms.
+    (,(concat "[[(]def"
+              (quack-re-alt (concat "macro"
+                                    (quack-re-alt "" "-public"))
+                            "syntax")
+              "\\>[ \t]+\\(\\sw+\\)")
+     3 quack-pltish-defn-face nil t)
+
+    ;; `defmac' from SIOD.
+    ("[[(]defmac[ \t]+[[(][ \t]*\\(\\sw+\\)"
+     1 quack-pltish-defn-face nil t)
+
+    ;; `defvar' and `defun' from SIOD.
+    (,(concat "[[(]def"
+              (quack-re-alt "un"
+                            "var")
+              "[ \t]+\\(\\sw+\\)")
+     2 quack-pltish-defn-face nil t)
+
+    ;; Guile and Chicken `define-module'.
+    ("[[(]define-module\\>[ \t]+[[(][ \t]*\\(\\sw+\\([ \t]+\\sw+\\)*\\)"
+     1 quack-pltish-module-defn-face nil t)
+
+    ;; PLT `define-values', `define-syntaxes', and `define-syntax-set'.
+    (,(concat "[[(]define-"
+              (quack-re-alt "values" "syntax-set" "syntaxes")
+              "\\>[ \t]+[[(][ \t]*\\(\\sw+\\([ \t]+\\sw+\\)*\\)")
+     2 quack-pltish-defn-face nil t)
+
+    ;; PLT `module'.
+    ("[[(]module\\>[ \t]+\\(\\sw+\\)"
+     1 quack-pltish-module-defn-face nil t)
+
+    ;; Named `let'.  (Note: This is disabled because it's too incongruous.)
+    ;;("[[(]let\\>[ \t]+\\(\\sw+\\)"
+    ;; 1 quack-pltish-defn-face nil t)
+    ))
+
+;; TODO: Adding PLT-style (quasi)quoted list fontifying is obviously not doable
+;;       with just regexps.  Probably requires either cloning
+;;       `font-lock-default-fontify-region' just to get it to call our
+;;       replacement syntactic pass fontification function, *or*
+;;       before-advising `font-lock-fontify-keywords-region' to perform our
+;;       syntactic pass when in scheme-mode, and around-advising
+;;       `font-lock-fontify-syntactically-region' to not do anything for
+;;       scheme-mode (or maybe setting `font-lock-keywords-only' to non-nil,
+;;       unless that breaks something else).  Or just ditch font-lock.  See
+;;       `font-lock-fontify-region-function' variable in font-lock specs.
+
+;; (defconst quack-pltish-fls-keywords
+;;   `((,(concat
+;;        "[[(]\\("
+;;        (regexp-opt quack-pltish-keywords-to-fontify)
+;;        "\\)\\>")
+;;      (1 quack-pltish-keyword-face))))
+
+(defun quack-install-fontification ()
+
+  (when (eq quack-fontify-style 'plt)
+    (set (make-local-variable 'font-lock-comment-face)
+         'quack-pltish-comment-face)
+    (set (make-local-variable 'font-lock-string-face)
+         'quack-pltish-selfeval-face))
+
+  (let* ((sk  `(("\\(#\\)\\(|\\)"
+                 (1 ,quack-pound-syntax)
+                 (2 ,quack-bar-syntax))
+                ("\\(|\\)\\(#\\)"
+                 (1 ,quack-bar-syntax)
+                 (2 ,quack-pound-syntax))))
+         (pl  (if (and quack-pretty-lambda-supported-p quack-pretty-lambda-p)
+                  '(("[[(]\\(case-\\|match-\\|opt-\\)?\\(lambda\\)\\>"
+                     2
+                     (progn (compose-region (match-beginning 2)
+                                            (match-end       2)
+                                            quack-lambda-char)
+                            nil)))
+                '()))
+         (threesemi (if quack-fontify-threesemi-p
+                        `((,(concat "^\\(\;\;\;\\)"
+                                    "\\("
+                                    "[ \t]*"
+                                    "\\("
+                                    "[^\r\n]*"
+                                    "\\)"
+                                    "\r?\n?\\)")
+                           (1 quack-threesemi-semi-face prepend)
+                           (2 quack-threesemi-text-face prepend)
+                           ;;(4 quack-threesemi-h1-face   prepend)
+                           ;;(5 quack-threesemi-h2-face   prepend)
+                           )
+                          ("^\;\;\; @\\(Package\\|section\\|unnumberedsec\\)[ \t]+\\([^\r\n]*\\)"
+                           (2 quack-threesemi-h1-face prepend))
+                          ("^\;\;\; @subsection[ \t]+\\([^\r\n]*\\)"
+                           (1 quack-threesemi-h2-face prepend))
+                          )
+                      '()))
+         (fld `(,(cond
+                  ((eq quack-fontify-style 'plt)
+                   (set (make-local-variable
+                         'quack-pltish-font-lock-keywords)
+                        `(,@quack-pltish-fls-base
+                          ,@(if quack-pltish-fontify-definition-names-p
+                                quack-pltish-fls-defnames
+                              '())
+                          ,@pl
+                          ,@(if quack-pltish-fontify-keywords-p
+                                ;; quack-pltish-fls-keywords
+                                `((,(concat
+                                     "[[(]\\("
+                                     (regexp-opt
+                                      quack-pltish-keywords-to-fontify)
+                                     "\\)\\>")
+                                   (1 quack-pltish-keyword-face)))
+                              '())
+                          ,@threesemi
+                          ))
+                   'quack-pltish-font-lock-keywords)
+                  ((eq quack-fontify-style 'emacs)
+                   ;; TODO: Do pretty-lambda here too.  But first get rid of
+                   ;;       this font-lock style "degrees of general gaudiness"
+                   ;;       and switch to separate options for each property of
+                   ;;       fontification.
+                   '(quack-emacsish1-font-lock-keywords
+                     quack-emacsish1-font-lock-keywords
+                     quack-emacsish2-font-lock-keywords))
+                  (t (quack-internal-error)))
+                nil
+                t
+                ((?! . "w") (?$ . "w") (?% . "w") (?& . "w") (?* . "w")
+                 (?+ . "w") (?- . "w") (?. . "w") (?/ . "w") (?: . "w")
+                 (?< . "w") (?= . "w") (?> . "w") (?? . "w") (?@ . "w")
+                 (?^ . "w") (?_ . "w") (?~ . "w")
+                 ,@(if (eq quack-fontify-style 'plt)
+                       '((?# . "w"))
+                     '()))
+                ;; TODO: Using `beginning-of-defun' here could be very slow,
+                ;;       say, when you have a large buffer that is wrapped in a
+                ;;       `module' form.  Look into whether this is a problem.
+                beginning-of-defun
+                ,@(if t                 ; quack-gnuemacs-p
+                      `((font-lock-mark-block-function . mark-defun)
+                        (font-lock-syntactic-keywords  . ,sk))
+                    '()))))
+
+    ;; TODO: Figure out why `font-lock-syntactic-keywords' just doesn't work in
+    ;;       XEmacs 21, even though the syntax text properties seem to get set.
+    ;;       We have already beaten it like an egg-sucking dog.
+
+    ;;(if quack-xemacs-p
+    ;;(put 'scheme-mode 'font-lock-defaults fld)
+    (set (make-local-variable 'font-lock-defaults) fld)
+    ;;)
+
+    ;;(when quack-xemacs-p
+    ;;  (set (make-local-variable 'font-lock-syntactic-keywords)
+    ;;       syntactic-keywords))
+    ))
+
+;; Scheme Mode Startup Hook:
+
+(defun quack-locally-steal-key-bindings (old-func new-func)
+  (mapcar (function (lambda (key)
+                      (unless (and (vectorp key)
+                                   (eq (aref key 0) 'menu-bar))
+                        (local-set-key key new-func))))
+          (where-is-internal old-func)))
+
+(defun quack-shared-mode-hookfunc-stuff ()
+
+  ;; Install the Quack keymap and menu items.
+  (local-set-key quack-scheme-mode-keymap-prefix quack-scheme-mode-keymap)
+  (quack-when-xemacs
+   (when (featurep 'menubar)
+     ;;(set-buffer-menubar current-menubar)
+     ;; TODO: For XEmacs, we could have two versions of this menu -- the popup
+     ;;       one would have the Global submenu, but the menubar one would have
+     ;;       the Global submenu only if quack-global-menu-p were nil.
+     (add-submenu nil quack-scheme-mode-menuspec)
+     (set-menubar-dirty-flag)
+     (setq mode-popup-menu quack-scheme-mode-menuspec)))
+
+  ;; Bind the paren-matching keys.
+  (local-set-key ")" 'quack-insert-closing-paren)
+  (local-set-key "]" 'quack-insert-closing-bracket)
+
+  (local-set-key "(" 'quack-insert-opening-paren)
+  (local-set-key "[" 'quack-insert-opening-bracket)
+
+  ;; Steal any find-file bindings.
+  (when quack-remap-find-file-bindings-p
+    (quack-locally-steal-key-bindings 'find-file     'quack-find-file)
+    (quack-locally-steal-key-bindings 'ido-find-file 'quack-find-file))
+
+  ;; Fight against tabs.
+  (when quack-tabs-are-evil-p
+    (setq indent-tabs-mode nil))
+
+  ;; Remove character compositions, to get rid of any pretty-lambda.  (Note:
+  ;; This is bad, if it turns out compositions are used for other purposes in
+  ;; buffers that are edited with Scheme Mode.)
+  (when quack-pretty-lambda-supported-p
+    (eval '(decompose-region (point-min) (point-max))))
+
+  ;; Install fontification
+  (when quack-fontify-style
+    (when (and (boundp 'font-lock-keywords)
+               (symbol-value 'font-lock-keywords)
+               (not (featurep 'noweb-mode)))
+      ;; This warning is not given if the `noweb-mode' package is installed.
+      (quack-warning "`font-lock-keywords' already set when hook ran."))
+    (quack-install-fontification))
+
+  ;; Die! Die! Die!
+  (quack-when-xemacs
+   (quack-install-global-menu)))
+
+(defun quack-inferior-scheme-mode-hookfunc ()
+  (quack-shared-mode-hookfunc-stuff))
+
+(defun quack-scheme-mode-hookfunc ()
+  (quack-shared-mode-hookfunc-stuff)
+
+  ;; Bind Return/Enter key.
+  (local-set-key "\r" 'quack-newline)
+
+  ;; Install toolbar.
+  ;;(unless quack-xemacs-p
+  ;;(when (display-graphic-p)
+  ;;(quack-install-tool-bar)))
+  )
+
+(add-hook 'scheme-mode-hook          'quack-scheme-mode-hookfunc)
+(add-hook 'inferior-scheme-mode-hook 'quack-inferior-scheme-mode-hookfunc)
+
+;; Compilation Mode:
+
+(defvar quack-saved-compilation-error-regexp-alist nil)
+
+(defconst quack-compilation-error-regexp-alist-additions
+  (let ((no-line (if quack-xemacs-p
+                     (let ((m (make-marker))) (set-marker m 0) m)
+                   'quack-compile-no-line-number)))
+  `(
+
+    ;; PLT MzScheme 205 "setup-plt"
+    ;;   load-handler: expected a `module' declaration for `bar-unit' in
+    ;;   "/u/collects/bar/bar-unit.ss", but found something else
+    (,(concat "load-handler: expected a `module' declaration for `[^']+' in "
+              "\"\\([^\n\"]+\\)\", but found something else")
+     1 ,no-line)
+
+    ;; PLT MzScheme 205 "setup-plt".
+    ;;   setup-plt: Error during Compiling .zos for Foo Bar (/u/collects/fb)
+    ("setup-plt: Error during Compiling .zos for [^\n]+ \(\\([^\n\)]+\\)\)"
+     1 ,no-line)
+
+    )))
+
+(defun quack-compile-no-line-number (filename column)
+  (list (point-marker) filename 1 (and column (string-to-int column))))
+
+(defun quack-install-compilation-mode-stuff ()
+  (unless quack-saved-compilation-error-regexp-alist
+    (setq quack-saved-compilation-error-regexp-alist 
+          compilation-error-regexp-alist))
+  (setq compilation-error-regexp-alist
+        (append quack-compilation-error-regexp-alist-additions
+                quack-saved-compilation-error-regexp-alist)))
+
+(quack-install-compilation-mode-stuff)
+
+;; PLT Package Mode:
+
+;; TODO: Do some simple checking and summarize what directories and files are
+;;       getting modified by this package.
+
+;; TODO: Maybe don't worry about preserving the decompressed text verbatim in
+;;       the buffer -- set markers and generate headings, and be able to
+;;       construct valid package.
+
+;; TODO: Command to install package from original file using "setup-plt".
+
+;; TODO: Fontify Scheme code file contents.
+
+(defvar quack-pltfile-mode-hook nil)
+
+(defvar quack-hiding-ovlcat)
+(put 'quack-hiding-ovlcat 'face       'default)
+(put 'quack-hiding-ovlcat 'intangible t)
+(put 'quack-hiding-ovlcat 'invisible  t)
+
+(defvar quack-pltfile-mode-map (make-sparse-keymap))
+(define-key quack-pltfile-mode-map "q" 'quack-pltfile-quit)
+(define-key quack-pltfile-mode-map "r" 'quack-pltfile-raw)
+(define-key quack-pltfile-mode-map " " 'scroll-up)
+
+;; TODO: Make a menu map for pltfile-mode.
+
+(defun quack-pltfile-mode ()
+  (interactive)
+  "Major mode for viewing PLT Scheme `.plt' package files.
+
+\\{quack-pltfile-mode-map}
+
+Provided by Quack: http://www.neilvandyke.org/quack/"
+  (kill-all-local-variables)
+  (put 'quack-pltfile-mode 'mode-class 'special)
+  (setq major-mode 'quack-pltfile-mode)
+  (setq mode-name "PLT Package")
+  (use-local-map quack-pltfile-mode-map)
+  ;; Note: Currently, the `font-lock' feature is always defined, since we
+  ;; require it.
+  (when (featurep 'font-lock)
+    (setq font-lock-defaults nil))
+  (buffer-disable-undo)
+  (let ((saved-bmp (buffer-modified-p)))
+    (quack-activity "Decoding PLT package" (quack-pltfile-decode-buffer))
+    (setq buffer-read-only t)
+    (set-buffer-modified-p saved-bmp))
+  (quack-when-xemacs
+   (make-variable-buffer-local 'write-contents-hooks))
+  (add-hook 'write-contents-hooks 'quack-prevent-pltfile-write)
+  (run-hooks 'quack-pltfile-mode-hook)
+  (message "Decoded PLT package.  %s"
+           (substitute-command-keys
+            (concat "`\\[quack-pltfile-quit]' to quit"
+                    ", `\\[quack-pltfile-raw]' for raw format."))))
+
+(defun quack-prevent-pltfile-write ()
+  (unless (yes-or-no-p
+           "Write a decoded PLT package buffer?!  Are you *sure*?!")
+    (error "Aborted write of decoded PLT package buffer.")))
+
+(defun quack-pltfile-raw ()
+  (interactive)
+  (let ((auto-mode-alist '()))
+    (setq buffer-read-only nil)
+    (widen)
+    (delete-region (point-min) (point-max))
+    (fundamental-mode)
+    (revert-buffer t t)))
+
+(defun quack-pltfile-quit ()
+  (interactive)
+  (kill-buffer (current-buffer)))
+
+(defun quack-skip-whitespace-to-nonblank-line-beginning ()
+  (save-match-data
+    (while (looking-at "[ \t\r\f]*\n")
+      (goto-char (match-end 0)))))
+
+(defun quack-pltfile-decode-buffer ()
+
+  ;; MIME Base-64 decode.  (Note: an error is signaled if this fails.)
+  (base64-decode-region (point-min) (point-max))
+
+  ;; Gzip decompress.
+  (let ((coding-system-for-write (if quack-xemacs-p 'binary 'raw-text-unix))
+        (coding-system-for-read  (if quack-xemacs-p 'binary 'raw-text-unix))
+        (inhibit-eol-conversion  t)
+        status)
+    (unless (= (setq status (call-process-region (point-min) (point-max)
+                                                 "gzip" t t nil "-d")) 0)
+      (error "Could not decompress PLT package: gzip process status %s"
+             status)))
+
+  ;; Move past the "PLT" cookie, and the two sexp forms.
+  (goto-char (point-min))
+  (unless (looking-at "PLT")
+    (error "This does not appear to be a PLT package file."))
+  (goto-char (match-end 0))
+  (forward-list 2)
+  (quack-skip-whitespace-to-nonblank-line-beginning)
+  (quack-make-face-ovlext (point-min) (point) 'quack-pltfile-prologue-face)
+
+  ;; Process the buffer contents.
+  (let ((standard-input (current-buffer)))
+
+    (while (not (eobp))
+      (let ((step-beg (point)))
+        ;; TODO: This read will fail if we just had whitespace at the end of
+        ;;       the file, which it shouldn't, but maybe we should check, just
+        ;;       in case.
+        (let ((sym (read)))
+          (unless (symbolp sym)
+            (error "Expected a symbol, but saw: %S" sym))
+          (cond
+
+           ((eq sym 'dir)
+            (forward-list)
+            (quack-skip-whitespace-to-nonblank-line-beginning)
+            (quack-make-face-ovlext step-beg
+                                    (point)
+                                    'quack-pltfile-dir-face))
+
+           ((memq sym '(file file-replace))
+            (forward-list)
+            (let ((size (read)))
+              (unless (and (integerp size) (>= size 0))
+                (error "Expected a file size, but saw: %S" size))
+              (unless (looking-at "[ \t\r\n\f]*\\*")
+                (error "Expected a `*' after file size."))
+              (goto-char (match-end 0))
+
+              ;; Fontify the file header.
+              (quack-make-face-ovlext step-beg
+                                      (1- (point))
+                                      'quack-pltfile-file-face)
+
+              ;; Hide the file contents asterisk.
+              (quack-make-hiding-ovlext (1- (point)) (point))
+
+              ;; Set the coding region for the content.
+              (let* ((content-beg (point))
+                     (content-end (+ content-beg size))
+                     (cs          (detect-coding-region content-beg
+                                                        content-end)))
+                (goto-char content-end)
+                (when (listp cs)
+                  (setq cs (car cs)))
+                (unless (eq cs 'undecided)
+                  (cond ((eq cs 'undecided-dos)  (setq cs 'raw-text-dos))
+                        ((eq cs 'undecided-mac)  (setq cs 'raw-text-mac))
+                        ((eq cs 'undecided-unix) (setq cs 'raw-text-unix)))
+                  (decode-coding-region content-beg content-end cs))
+                ;; TODO: XEmacs 21 `decode-coding-region' seems to lose the
+                ;;       point position.  This is disconcerting, since the
+                ;;       point semantics under coding system changes do not
+                ;;       currently seem to be well-specified, so resetting the
+                ;;       point here *might* not always be the right thing to
+                ;;       do.  Verify.
+                (quack-when-xemacs
+                 (goto-char content-end)))))
+
+           (t (error "Expected `dir', `file', or `file-replace', but saw: %S"
+                     sym)))))))
+
+  ;; Return point to top of buffer.
+  (goto-char (point-min)))
+
+;; The rest of this file except for the `provide' form is TODO comments.
 
 ;; TODO: Add tool bar support later.
-
+;;
 ;; (defvar quack-toolbarimage-width  24)
 ;; (defvar quack-toolbarimage-height 24)
 ;;
@@ -3474,563 +4303,6 @@ Can be used in your `~/.emacs' file something like this:
 ;;
 ;;     (set (make-local-variable 'tool-bar-map) map)))
 
-;; Pretty Lambda:
-
-(defconst quack-lambda-char (make-char 'greek-iso8859-7 107))
-
-(defconst quack-pretty-lambda-supported-p
-  (and quack-gnuemacs-p (>= emacs-major-version 21)))
-
-;; Font Lock:
-
-(defconst quack-emacsish1-font-lock-keywords
-  `((,(concat "[[(]"
-              "\\("                     ; #<1
-              "define\\*?"
-                                        ; #=2 #=3
-              (quack-re-alt (quack-re-alt ""
-                                          "-generic"
-                                          "-generic-procedure"
-                                          "-method"
-                                          "-public"
-                                          "/override"
-                                          "/private"
-                                          "/public")
-                                        ; #=4
-                            (quack-re-alt "-macro"
-                                          "-syntax")
-                            "-class"
-                            "-module"
-                            "-signature"
-                            "-struct")
-              "\\)"                     ; #>1
-              "\\>"
-              "[ \t]*[[(]?"
-                                        ; #=5
-              "\\(\\sw+\\)?")
-     (1 font-lock-keyword-face)
-     (5 (cond ((match-beginning 3) font-lock-function-name-face)
-              ((match-beginning 4) font-lock-variable-name-face)
-              (t                   font-lock-type-face))
-        nil t))
-
-    ;; PLT module definitions.
-    ("[[(]\\(module\\)\\>[ \t]+\\(\\sw+\\)?"
-     (1 font-lock-keyword-face)
-     (2 font-lock-type-face nil t))))
-
-(defconst quack-emacsish2-font-lock-keywords
-  (append quack-emacsish1-font-lock-keywords
-          `(
-            ;; Misc. keywords.
-            (,(concat
-               "[[(]\\("
-               (regexp-opt quack-emacsish-keywords-to-fontify)
-               "\\)\\>")
-             . 1)
-            ;; Class specifiers in SOS, Stklos, Goops.
-            ("\\<<\\sw+>\\>" . font-lock-type-face)
-            ;; Colon keywords.
-            ("\\<:\\sw+\\>" . font-lock-builtin-face))))
-
-(defun quack-pltish-num-re (radix digit base16-p)
-  ;; These regexps started as a transliteration of the R5RS BNF to regular
-  ;; expressions, adapted for PLTisms, and with a few optimizations.
-  ;;
-  ;; PLTisms are that 'e' is not permitted as an exponent marker in base-16
-  ;; literals, and that "decimal-point" forms are permitted in any radix.
-  ;;
-  ;; There's obvious opportunity for further optimization, especially if we
-  ;; relax the accepted syntax a little.  These regexps have not been tested
-  ;; much, but, since this is only Emacs syntax fontification, false-positives
-  ;; and false-negatives will be obvious yet benign.
-  (let* ((uint    (concat digit "+#*"))
-         (sign    "[-+]?")
-         (suffix  (quack-re-optional (if base16-p "[sSfFdDlL]" "[eEsSfFdDlL]")
-                                     sign
-                                     "[0-9]+"))
-         (decimal (quack-re-alt
-                   (concat uint suffix)
-                   (concat "\\." digit "+#*" suffix)
-                   (concat digit
-                           "+"
-                           (quack-re-alt (concat "\\." digit "*")
-                                         "#+\\.")
-                           "#*")))
-         (ureal   (quack-re-alt uint
-                                (concat uint "/" uint)
-                                decimal))
-         (real    (concat sign ureal))
-         (complex (quack-re-alt
-                   (concat real
-                           (quack-re-alt (concat "@" real)
-                                         (quack-re-optional
-                                          "[-+]"
-                                          (quack-re-optional ureal)
-                                          "i")
-                                         ""))
-                   (concat "[-+]" (quack-re-optional ureal) "i")))
-         (exact   (quack-re-optional "#[eEiI]"))
-         (prefix  (quack-re-alt (concat radix exact)
-                                (concat exact radix))))
-    (concat "\\<" prefix complex "\\>")))
-
-(defconst quack-pltish-fls-base
-  `(
-    ("\\`\\(MrEd\\|Welcome to MzScheme\\) version [^\n]+" . quack-banner-face)
-    ("\\`Welcome to scsh [0-9][^\n]+\nType ,\\? for help[^\n]+"
-     . quack-banner-face)
-    ;;("\\`; This is the CHICKEN interpreter - Version [^\n]+\n; (c)[^\n]+"
-    ;; . quack-banner-face)
-    ;;("\\`Scheme Microcode Version[^\n]+\nMIT Scheme[^\n]+\n\\([^\n]+\n\\)+" .
-    ;;quack-banner-face)
-    ("'\\sw+\\>"                . quack-pltish-selfeval-face)
-    ("'|\\(\\sw\\| \\)+|"       . quack-pltish-selfeval-face)
-    ;; Note: The first alternative in the following rule will misleadingly
-    ;; fontify some invalid syntax, such as "#\(x".
-    ("\\<#\\\\\\([][-`~!@#$%&*()_+=^{}\;:'\"<>,.?/|\\\\]\\|\\sw+\\>\\)"
-     . quack-pltish-selfeval-face)
-    ("[][()]"                   . quack-pltish-paren-face)
-    ("\\<#\\(t\\|f\\)\\>"       . quack-pltish-selfeval-face)
-    ("\\<+\\(inf.0\\|nan\\)\\>" . quack-pltish-selfeval-face)
-    ("\\<-inf.0\\>"             . quack-pltish-selfeval-face)
-    ,@(mapcar (function (lambda (args)
-                          (cons (apply 'quack-pltish-num-re args)
-                                'quack-pltish-selfeval-face)))
-              '(("#b"        "[01]"        nil)
-                ("#o"        "[0-7]"       nil)
-                ("\\(#d\\)?" "[0-9]"       nil)
-                ("#x"        "[0-9a-fA-F]" t)))))
-
-(defconst quack-pltish-fls-defnames
-  ;; TODO: Optimize these once they're fairly complete and correct.
-
-  ;; TODO: Would be nice to fontify binding names everywhere they are
-  ;;       introduced, such as in `let' and `lambda' forms.  That may require
-  ;;       real parsing to do reasonably well -- the kludges get too bad and
-  ;;       slow, and font-lock gets in the way more than it helps.
-
-  `(
-                                        ;,@quack-pltish-font-lock-keywords
-
-    ;; Lots of definition forms that start with "define".
-    (,(concat "[[(]"
-              "define\\*?"
-              ;; TODO: make this into regexp-opt
-              (quack-re-alt ""
-                            "-class"
-                            "-generic"
-                            "-generic-procedure"
-                            "-macro"
-                            "-method"
-                            "-opt"
-                            "-public"
-                            "-record"
-                            "-signature"
-                            "-struct"
-                            "-syntax"
-                            "/contract"
-                            "/override"
-                            "/private"
-                            "/public")
-              "\\>"
-              "[ \t]*[[(]?"
-              "\\(\\sw+\\)")
-     (2 (let ((name (quack-match-string-no-properties 2)))
-          (if (= (aref name (1- (length name))) ?%)
-              quack-pltish-class-defn-face
-            quack-pltish-defn-face))
-        nil t))
-
-    ;; `defmacro' and related SCM forms.
-    (,(concat "[[(]def"
-              (quack-re-alt (concat "macro"
-                                    (quack-re-alt "" "-public"))
-                            "syntax")
-              "\\>[ \t]+\\(\\sw+\\)")
-     3 quack-pltish-defn-face nil t)
-
-    ;; `defmac' from SIOD.
-    ("[[(]defmac[ \t]+[[(][ \t]*\\(\\sw+\\)"
-     1 quack-pltish-defn-face nil t)
-
-    ;; `defvar' and `defun' from SIOD.
-    (,(concat "[[(]def"
-              (quack-re-alt "un"
-                            "var")
-              "[ \t]+\\(\\sw+\\)")
-     2 quack-pltish-defn-face nil t)
-
-    ;; Guile and Chicken `define-module'.
-    ("[[(]define-module\\>[ \t]+[[(][ \t]*\\(\\sw+\\([ \t]+\\sw+\\)*\\)"
-     1 quack-pltish-module-defn-face nil t)
-
-    ;; PLT `define-values' and `define-syntaxes'.
-    (,(concat "[[(]define-"
-              (quack-re-alt "values" "syntaxes")
-              "\\>[ \t]+[[(][ \t]*\\(\\sw+\\([ \t]+\\sw+\\)*\\)")
-     2 quack-pltish-defn-face nil t)
-
-    ;; PLT `module'.
-    ("[[(]module\\>[ \t]+\\(\\sw+\\)"
-     1 quack-pltish-module-defn-face nil t)
-
-    ;; Named `let'.  (Note: This is disabled because it's too incongruous.)
-    ;;("[[(]let\\>[ \t]+\\(\\sw+\\)"
-    ;; 1 quack-pltish-defn-face nil t)
-    ))
-
-;; TODO: Adding PLT-style (quasi)quoted list fontifying is obviously not doable
-;;       with just regexps.  Probably requires either cloning
-;;       `font-lock-default-fontify-region' just to get it to call our
-;;       replacement syntactic pass fontification function, *or*
-;;       before-advising `font-lock-fontify-keywords-region' to perform our
-;;       syntactic pass when in scheme-mode, and around-advising
-;;       `font-lock-fontify-syntactically-region' to not do anything for
-;;       scheme-mode (or maybe setting `font-lock-keywords-only' to non-nil,
-;;       unless that breaks something else).  Or just ditch font-lock.  See
-;;       `font-lock-fontify-region-function' variable in font-lock specs.
-
-(defconst quack-pltish-fls-keywords
-  `((,(concat
-       "[[(]\\("
-       (regexp-opt quack-pltish-keywords-to-fontify)
-       "\\)\\>")
-     (1 quack-pltish-keyword-face))))
-
-(defun quack-install-fontification ()
-
-  (when (eq quack-fontify-style 'plt)
-    (set (make-local-variable 'font-lock-comment-face)
-         'quack-pltish-comment-face)
-    (set (make-local-variable 'font-lock-string-face)
-         'quack-pltish-selfeval-face))
-
-  (let* ((sk  `(("\\(#\\)\\(|\\)"
-                 (1 ,quack-pound-syntax)
-                 (2 ,quack-bar-syntax))
-                ("\\(|\\)\\(#\\)"
-                 (1 ,quack-bar-syntax)
-                 (2 ,quack-pound-syntax))))
-         (pl  (if (and quack-pretty-lambda-supported-p quack-pretty-lambda-p)
-                  '(("[[(]\\(case-\\|opt-\\)?\\(lambda\\)\\>"
-                     2
-                     (progn (compose-region (match-beginning 2)
-                                            (match-end       2)
-                                            quack-lambda-char)
-                            nil)))
-                '()))
-         (threesemi (if quack-fontify-threesemi-p
-                        `((,(concat "^\\(\;\;\;\\)"
-                                    "\\("
-                                    "[ \t]*"
-                                    "\\("
-                                    "@section[ \t]+\\([^\r\n]+\\)"
-                                    "\\|"
-                                    "@subsection[ \t]+\\([^\r\n]+\\)"
-                                    "\\|"
-                                    "[^\r\n]*"
-                                    "\\)"
-                                    "\r?\n?\\)")
-                           (1 quack-threesemi-semi-face prepend)
-                           (2 quack-threesemi-text-face prepend)
-                           ;;(4 quack-threesemi-h1-face   prepend)
-                           ;;(5 quack-threesemi-h2-face   prepend)
-                           ))
-                      '()))
-         (fld `(,(cond
-                  ((eq quack-fontify-style 'plt)
-                   (set (make-local-variable
-                         'quack-pltish-font-lock-keywords)
-                        `(,@quack-pltish-fls-base
-                          ,@(if quack-pltish-fontify-definition-names-p
-                                quack-pltish-fls-defnames
-                              '())
-                          ,@pl
-                          ,@(if quack-pltish-fontify-keywords-p
-                                quack-pltish-fls-keywords
-                              '())
-                          ,@threesemi
-                          ))
-                   'quack-pltish-font-lock-keywords)
-                  ((eq quack-fontify-style 'emacs)
-                   ;; TODO: Do pretty-lambda here too.  But first get rid of
-                   ;;       this font-lock style "degrees of general gaudiness"
-                   ;;       and switch to separate options for each property of
-                   ;;       fontification.
-                   '(quack-emacsish1-font-lock-keywords
-                     quack-emacsish1-font-lock-keywords
-                     quack-emacsish2-font-lock-keywords))
-                  (t (quack-internal-error)))
-                nil
-                t
-                ((?! . "w") (?$ . "w") (?% . "w") (?& . "w") (?* . "w")
-                 (?+ . "w") (?- . "w") (?. . "w") (?/ . "w") (?: . "w")
-                 (?< . "w") (?= . "w") (?> . "w") (?? . "w") (?@ . "w")
-                 (?^ . "w") (?_ . "w") (?~ . "w")
-                 ,@(if (eq quack-fontify-style 'plt)
-                       '((?# . "w"))
-                     '()))
-                ;; TODO: Using `beginning-of-defun' here could be very slow,
-                ;;       say, when you have a large buffer that is wrapped in a
-                ;;       `module' form.  Look into whether this is a problem.
-                beginning-of-defun
-                ,@(if t                 ; quack-gnuemacs-p
-                      `((font-lock-mark-block-function . mark-defun)
-                        (font-lock-syntactic-keywords  . ,sk))
-                    '()))))
-
-    ;; TODO: Figure out why `font-lock-syntactic-keywords' just doesn't work in
-    ;;       XEmacs 21, even though the syntax text properties seem to get set.
-    ;;       We have already beaten it like an egg-sucking dog.
-
-    ;;(if quack-xemacs-p
-    ;;(put 'scheme-mode 'font-lock-defaults fld)
-    (set (make-local-variable 'font-lock-defaults) fld)
-    ;;)
-
-    ;;(when quack-xemacs-p
-    ;;  (set (make-local-variable 'font-lock-syntactic-keywords)
-    ;;       syntactic-keywords))
-    ))
-
-;; Scheme Mode Startup Hook:
-
-(defun quack-locally-steal-key-bindings (old-func new-func)
-  (mapcar (function (lambda (key)
-                      (unless (and (vectorp key)
-                                   (eq (aref key 0) 'menu-bar))
-                        (local-set-key key new-func))))
-          (where-is-internal old-func)))
-
-(defun quack-shared-mode-hookfunc-stuff ()
-
-  ;; Install the Quack keymap and menu items.
-  (local-set-key quack-scheme-mode-keymap-prefix quack-scheme-mode-keymap)
-  (quack-when-xemacs
-   (when (featurep 'menubar)
-     ;;(set-buffer-menubar current-menubar)
-     ;; TODO: For XEmacs, we could have two versions of this menu -- the popup
-     ;;       one would have the Global submenu, but the menubar one would have
-     ;;       the Global submenu only if quack-global-menu-p were nil.
-     (add-submenu nil quack-scheme-mode-menuspec)
-     (set-menubar-dirty-flag)
-     (setq mode-popup-menu quack-scheme-mode-menuspec)))
-
-  ;; Bind the paren-matching keys.
-  (local-set-key ")" 'quack-insert-closing-paren)
-  (local-set-key "]" 'quack-insert-closing-bracket)
-
-  ;; Steal any find-file bindings.
-  (when quack-remap-find-file-bindings-p
-    (quack-locally-steal-key-bindings 'find-file     'quack-find-file)
-    (quack-locally-steal-key-bindings 'ido-find-file 'quack-find-file))
-
-  ;; Fight against tabs.
-  (when quack-tabs-are-evil-p
-    (setq indent-tabs-mode nil))
-
-  ;; Remove character compositions, to get rid of any pretty-lambda.  (Note:
-  ;; This is bad, if it turns out compositions are used for other purposes in
-  ;; buffers that are edited with Scheme Mode.)
-  (when quack-pretty-lambda-supported-p
-    (eval '(decompose-region (point-min) (point-max))))
-
-  ;; Install fontification
-  (when quack-fontify-style
-    (when (and (boundp 'font-lock-keywords)
-               (symbol-value 'font-lock-keywords)
-               (not (featurep 'noweb-mode)))
-      ;; This warning is not given if the `noweb-mode' package is installed.
-      (quack-warning "`font-lock-keywords' already set when hook ran."))
-    (quack-install-fontification)))
-
-(defun quack-inferior-scheme-mode-hookfunc ()
-  (quack-shared-mode-hookfunc-stuff))
-
-(defun quack-scheme-mode-hookfunc ()
-  (quack-shared-mode-hookfunc-stuff)
-
-  ;; Install toolbar.
-  ;;(unless quack-xemacs-p
-  ;;(when (display-graphic-p)
-  ;;(quack-install-tool-bar)))
-  )
-
-(add-hook 'scheme-mode-hook          'quack-scheme-mode-hookfunc)
-(add-hook 'inferior-scheme-mode-hook 'quack-inferior-scheme-mode-hookfunc)
-
-;; PLT Package Mode:
-
-;; TODO: Do some simple checking and summarize what directories and files are
-;;       getting modified by this package.
-
-;; TODO: Maybe don't worry about preserving the decompressed text verbatim in
-;;       the buffer -- set markers and generate headings, and be able to
-;;       construct valid package.
-
-;; TODO: Command to install package from original file using "setup-plt".
-
-;; TODO: Fontify Scheme code file contents.
-
-(defvar quack-pltfile-mode-hook nil)
-
-(defvar quack-hiding-ovlcat)
-(put 'quack-hiding-ovlcat 'face       'default)
-(put 'quack-hiding-ovlcat 'intangible t)
-(put 'quack-hiding-ovlcat 'invisible  t)
-
-(defvar quack-pltfile-mode-map (make-sparse-keymap))
-(define-key quack-pltfile-mode-map "q" 'quack-pltfile-quit)
-(define-key quack-pltfile-mode-map "r" 'quack-pltfile-raw)
-(define-key quack-pltfile-mode-map " " 'scroll-up)
-
-;; TODO: Make a menu map for pltfile-mode.
-
-(defun quack-pltfile-mode ()
-  (interactive)
-  "Major mode for viewing PLT Scheme `.plt' package files.
-
-\\{quack-pltfile-mode-map}
-
-Provided by Quack: http://www.neilvandyke.org/quack/"
-  (kill-all-local-variables)
-  (put 'quack-pltfile-mode 'mode-class 'special)
-  (setq major-mode 'quack-pltfile-mode)
-  (setq mode-name "PLT Package")
-  (use-local-map quack-pltfile-mode-map)
-  ;; Note: Currently, the `font-lock' feature is always defined, since we
-  ;; require it.
-  (when (featurep 'font-lock)
-    (setq font-lock-defaults nil))
-  (buffer-disable-undo)
-  (let ((saved-bmp (buffer-modified-p)))
-    (quack-activity "Decoding PLT package" (quack-pltfile-decode-buffer))
-    (setq buffer-read-only t)
-    (set-buffer-modified-p saved-bmp))
-  (quack-when-xemacs
-   (make-variable-buffer-local 'write-contents-hooks))
-  (add-hook 'write-contents-hooks 'quack-prevent-pltfile-write)
-  (run-hooks 'quack-pltfile-mode-hook)
-  (message "Decoded PLT package.  %s"
-           (substitute-command-keys
-            (concat "`\\[quack-pltfile-quit]' to quit"
-                    ", `\\[quack-pltfile-raw]' for raw format."))))
-
-(defun quack-prevent-pltfile-write ()
-  (unless (yes-or-no-p
-           "Write a decoded PLT package buffer?!  Are you *sure*?!")
-    (error "Aborted write of decoded PLT package buffer.")))
-
-(defun quack-pltfile-raw ()
-  (interactive)
-  (let ((auto-mode-alist '()))
-    (setq buffer-read-only nil)
-    (widen)
-    (delete-region (point-min) (point-max))
-    (fundamental-mode)
-    (revert-buffer t t)))
-
-(defun quack-pltfile-quit ()
-  (interactive)
-  (kill-buffer (current-buffer)))
-
-(defun quack-skip-whitespace-to-nonblank-line-beginning ()
-  (save-match-data
-    (while (looking-at "[ \t\r\f]*\n")
-      (goto-char (match-end 0)))))
-
-(defun quack-pltfile-decode-buffer ()
-
-  ;; MIME Base-64 decode.  (Note: an error is signaled if this fails.)
-  (base64-decode-region (point-min) (point-max))
-
-  ;; Gzip decompress.
-  (let ((coding-system-for-write (if quack-xemacs-p 'binary 'raw-text-unix))
-        (coding-system-for-read  (if quack-xemacs-p 'binary 'raw-text-unix))
-        (inhibit-eol-conversion  t)
-        status)
-    (unless (= (setq status (call-process-region (point-min) (point-max)
-                                                 "gzip" t t nil "-d")) 0)
-      (error "Could not decompress PLT package: gzip process status %s"
-             status)))
-
-  ;; Move past the "PLT" cookie, and the two sexp forms.
-  (goto-char (point-min))
-  (unless (looking-at "PLT")
-    (error "This does not appear to be a PLT package file."))
-  (goto-char (match-end 0))
-  (forward-list 2)
-  (quack-skip-whitespace-to-nonblank-line-beginning)
-  (quack-make-face-ovlext (point-min) (point) 'quack-pltfile-prologue-face)
-
-  ;; Process the buffer contents.
-  (let ((standard-input (current-buffer)))
-
-    (while (not (eobp))
-      (let ((step-beg (point)))
-        ;; TODO: This read will fail if we just had whitespace at the end of
-        ;;       the file, which it shouldn't, but maybe we should check, just
-        ;;       in case.
-        (let ((sym (read)))
-          (unless (symbolp sym)
-            (error "Expected a symbol, but saw: %S" sym))
-          (cond
-
-           ((eq sym 'dir)
-            (forward-list)
-            (quack-skip-whitespace-to-nonblank-line-beginning)
-            (quack-make-face-ovlext step-beg
-                                    (point)
-                                    'quack-pltfile-dir-face))
-
-           ((memq sym '(file file-replace))
-            (forward-list)
-            (let ((size (read)))
-              (unless (and (integerp size) (>= size 0))
-                (error "Expected a file size, but saw: %S" size))
-              (unless (looking-at "[ \t\r\n\f]*\\*")
-                (error "Expected a `*' after file size."))
-              (goto-char (match-end 0))
-
-              ;; Fontify the file header.
-              (quack-make-face-ovlext step-beg
-                                      (1- (point))
-                                      'quack-pltfile-file-face)
-
-              ;; Hide the file contents asterisk.
-              (quack-make-hiding-ovlext (1- (point)) (point))
-
-              ;; Set the coding region for the content.
-              (let* ((content-beg (point))
-                     (content-end (+ content-beg size))
-                     (cs          (detect-coding-region content-beg
-                                                        content-end)))
-                (goto-char content-end)
-                (when (listp cs)
-                  (setq cs (car cs)))
-                (unless (eq cs 'undecided)
-                  (cond ((eq cs 'undecided-dos)  (setq cs 'raw-text-dos))
-                        ((eq cs 'undecided-mac)  (setq cs 'raw-text-mac))
-                        ((eq cs 'undecided-unix) (setq cs 'raw-text-unix)))
-                  (decode-coding-region content-beg content-end cs))
-                ;; TODO: XEmacs 21 `decode-coding-region' seems to lose the
-                ;;       point position.  This is disconcerting, since the
-                ;;       point semantics under coding system changes do not
-                ;;       currently seem to be well-specified, so resetting the
-                ;;       point here *might* not always be the right thing to
-                ;;       do.  Verify.
-                (quack-when-xemacs
-                 (goto-char content-end)))))
-
-           (t (error "Expected `dir', `file', or `file-replace', but saw: %S"
-                     sym)))))))
-
-  ;; Return point to top of buffer.
-  (goto-char (point-min)))
-
-;; More TODO Items:
-
 ;; TODO: Extend `scheme-imenu-generic-expression' for PLT-specific definition
 ;;       forms and for definitions within modules.
 
@@ -4074,6 +4346,8 @@ Provided by Quack: http://www.neilvandyke.org/quack/"
 ;;       inferior process disambiguate REPL values, port output, error info,
 ;;       etc.  Start of code commented out below.  This may require rewriting
 ;;       chunks of `cmuscheme' and `comint'.
+;;
+;;       Try to use ELI protocol first.  http://www.cliki.net/ELI
 ;;
 ;; (defface quack-output-face
 ;;   '((((class color)) (:foreground "purple4" :background "lavender"))
@@ -4170,6 +4444,43 @@ Provided by Quack: http://www.neilvandyke.org/quack/"
 
 ;; TODO: Set `interpreter-mode-alist' based on interpreter list.
 
+;; TODO: "I think it would be good if the quack menu showed up only when emacs
+;;        was in Scheme mode."
+
+;; TODO: Support this:
+;;
+;;       * Added 'addon-dir for `find-system-path':
+;;       Unix: "~/.plt-scheme"
+;;       Windows: "PLT Scheme" in the user's Application Data folder.
+;;       Mac OS X: "~/Library/PLT Scheme"
+;;       Mac OS Classic: "PLT Scheme" in the preferences folder.
+;;
+;;       The version string for "~/.plt-scheme/<version>/collects/" might be:
+;;       mzscheme -mqe '(begin (display (version)) (exit))'
+;;       Double-check PLT source first.
+
+;; TODO: Add autoindenting to inferior Scheme buffer when pressing RET on an
+;;       incomplete sexp -- iff we can do this reliably enough.
+
+;; TODO: When tidying and point is within a series of multiple blank lines that
+;;       are reduced to a single blank line, leave point at the beginning of
+;;       the single blank line.
+
+;; TODO: Riastradh says: Do you suppose you could add a feature to Quack that
+;;       indents lists beginning with symbols of the form WITH-...  &
+;;       CALL-WITH-... as if their SCHEME-INDENT-FUNCTION property were DEFUN?
+
+;; TODO: Matt Dickerson asks " Also, the command history appears to be based on
+;;       newlines -- I work with blocks of code in the REPL and would like C-p
+;;       to give me the last block, not the last line of the previous block."
+
+;; TODO: Maybe get appropriate PLT collection path from the default for
+;;       whatever "mzscheme" executable is picked up.
+;;
+;; mzscheme -emq '(begin (write (current-library-collection-paths)) (exit 0))'
+;; ("/home/neil/collects" "/home/neil/.plt-scheme/208/collects"
+;;  "/usr/lib/plt/collects")
+
 ;; emacs21  -batch -no-site-file -f batch-byte-compile quack.el ; rm quack.elc
 ;; emacs20  -batch -no-site-file -f batch-byte-compile quack.el ; rm quack.elc
 ;; xemacs21 -batch -no-site-file -f batch-byte-compile quack.el ; rm quack.elc
@@ -4179,4 +4490,3 @@ Provided by Quack: http://www.neilvandyke.org/quack/"
 (provide 'quack)
 
 ;; quack.el ends here
-

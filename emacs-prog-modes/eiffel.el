@@ -1,6 +1,6 @@
 ;;; eiffel.el --- major mode for editing Eiffel files.
 
-;; Copyright (C) 1989, 1990, 1993, 1994, 1995, 1996, 1999, 2000, 2001, 2002
+;; Copyright (C) 1989, 1990, 93, 94, 95, 96, 99, 2000, 01, 02, 03
 ;;                         Tower Technology Corporation,
 ;;                         Free Software Foundation,
 ;;                         Bob Weiner,
@@ -8,16 +8,20 @@
 
 ;; Authors: 1989-1990 Stephen Omohundro, ISE and Bob Weiner
 ;;          1993-1996 Tower Technology Corporation
-;;          1999-2002 Martin Schwenke <martin@meltin.net>
+;;          1999-2003 Martin Schwenke <martin@meltin.net>
 ;; Maintainer: martin@meltin.net
 ;; Keywords: eiffel languages oop
-;; Requires: font-lock, compile, easymenu
+;; Requires: font-lock, compile, easymenu, imenu
 
 ;; This file is derived from eiffel4.el from Tower Technology Corporation.
 ;;
 ;; Known bugs:
 ;;
 ;; * eif-short buffer doesn't get font locked under GNU Emacs 19.34.
+;;
+;; * eif-debug can hang under (at least) XEmacs 21.4.[89] in the wait
+;;   loop if there is input pending (that is, if the user hits return
+;;   an extra time).  Not yet tested under XEmacs 21.5.
 ;;
 ;; This file is distributed under the same terms as GNU Emacs.
 
@@ -60,9 +64,10 @@
 (require 'font-lock)
 (require 'compile)
 (require 'easymenu)
+(require 'imenu)
 
 (defconst eiffel-version-string
-  "$Id: eiffel.el,v 2.34 2002/06/07 06:27:58 martins Exp $"
+  "$Id: eiffel.el,v 2.67 2003/06/14 10:41:01 martins Exp $"
   "Version string to make reporting bugs more meaningful.
 Note that if this file becomes part of GNU Emacs then the file might
 be changed by the Emacs maintainers without this version number
@@ -101,7 +106,7 @@ that was shipped with Emacs, you should report the Emacs version!")
 (defcustom eif-class-level-kw-indent 0
   "*Indentation for Class level keywords.
 Specified as number of `eif-indent-increments'.  See the variable
-`eif-class-level-keywords'."
+`eif-class-level-keywords-regexp'."
   :type 'integer
   :group 'eiffel-indent)
 
@@ -154,7 +159,7 @@ This results in the indentation of a feature.  Can be negative."
 (defcustom eif-feature-level-kw-indent 2
   "*Indentation of keywords belonging to individual features.
 Specified as number of `eif-indent-increments'.  See the variable
-`eif-feature-level-keywords'."
+`eif-feature-level-keywords-regexp'."
   :type 'integer
   :group 'eiffel-indent)
 
@@ -272,6 +277,12 @@ relative to indent of previous line."
   :type 'boolean
   :group 'eiffel-indent)
 
+(defcustom eif-preprocessor-indent 0
+  "*Indentation for lines GOBO preprocessor directives.
+Specified as number of `eif-indent-increments' from left margin."
+  :type 'integer
+  :group 'eiffel-indent)
+
 (defcustom eif-fill-max-save 4096
   "*Maximum size of a paragraph to save before filling.
 Normally \\[eif-fill-paragraph] will mark a buffer as modified even if
@@ -284,12 +295,8 @@ big number to enable it for all paragraphs."
   :type 'integer
   :group 'eiffel-indent)
 
-;;
-;; Compilation support for GNU SmallEiffel.
-;;
-
 (defcustom eif-use-gnu-eiffel t
-  "*If t include support for compilation using GNU SmallEiffel."
+  "*If t include support for compilation using GNU SmartEiffel."
   :type 'boolean
   :group 'eiffel-compile)
 
@@ -314,169 +321,8 @@ in Debian GNU/Linux, when the default value is \"se-compile\"."
   :group 'eiffel-compile)
 
 ;;
-;; Font-lock support.
-;;
-(defconst eiffel-font-lock-keywords
-  '(;; major keywords
-    ("\\(\\(^[ \t]*\\|[ \t]+\\)creation\\|^deferred[ \t]+class\\|^expanded[ \t]+class\\|^class\\|^feature\\|^indexing\\|\\(^[ \t]*\\|[ \t]+\\)inherit\\|^obsolete\\)[ \t\n]" 0 font-lock-keyword-face nil)
-    ;; assertions
-    ("\\(^\\|[^_\n]\\<\\)\\(check\\|ensure then\\|ensure\\|invariant\\|require else\\|require\\|variant\\)\\($\\|\\>[^_\n]\\)" 2 font-lock-reference-face nil)
-    ;; minor keywords
-    ("\\(^\\|[^_\n]\\<\\)\\(agent\\|alias\\|all\\|and not\\|and then\\|and\\|as\\|create\\|debug\\|deferred\\|do\\|else\\|elseif\\|end\\|export\\|external\\|from\\|frozen\\|if not\\|if\\|implies not\\|implies\\|infix\\|inspect\\|is deferred\\|is unique\\|is\\|like\\|local\\|loop\\|not\\|obsolete\\|old\\|once\\|or else\\|or not\\|or\\|precursor\\|prefix\\|redefine\\|rename\\|rescue\\|retry\\|select\\|separate\\|strip\\|then\\|undefine\\|unique\\|until\\|when\\|xor\\)\\($\\|\\>[^_\n]\\)" 2 font-lock-function-name-face nil)
-    ;; hidden comments
-    ("--|.*" 0 font-lock-keyword-face t)
-    ;; quoted expr's in comments
-    ("`[^`'\n]*'" 0 font-lock-string-face t))
-  "Regular expressions to use with font-lock mode.")
-
-(defconst eiffel-font-lock-defaults
-  '((eiffel-font-lock-keywords)
-    nil nil nil nil))
-
-(and (boundp 'font-lock-defaults-alist)
-     (add-to-list 'font-lock-defaults-alist
-		  (cons 'eiffel-mode
-			eiffel-font-lock-defaults)))
-
-;;
 ;; No user-customizable definitions below this point.
 ;;
-
-(defvar eif-compile-dir nil
-  "Current directory where Eiffel compilations are taking place.
-Possibly used for error location.")
-
-(defvar eif-compile-target nil
-  "Current Eiffel compilation target.")
-
-(defvar eif-root-proc "make"
-  "Current Eiffel root procedure.")
-
-(defvar eif-run-command nil
-  "Current command to run after Eiffel compile.")
-
-(defun eif-compilation-mode-hook ()
-  "Hook function to set local value for `compilation-error-screen-columns'.
-This should be nil for SmallEiffel compiles, because column positions are
-returned as character positions rather than screen columns."
-  ;; In Emacs > 20.7 compilation-error-screen-columns is buffer local.
-  (or (assq 'compilation-error-screen-columns (buffer-local-variables))
-      (make-local-variable 'compilation-error-screen-columns))
-  (setq compilation-error-screen-columns nil))
-
-(defun eif-compile ()
-  "Compile an Eiffel root class."
-  (interactive)
-
-  ;; Do the save first, since the user might still have their hand on
-  ;; the mouse.
-  (save-some-buffers (not compilation-ask-about-save) nil)
-
-  (setq eif-compile-dir (file-name-directory (buffer-file-name)))
-  (setq eif-compile-target
-	(file-name-sans-extension
-	 (read-string "Name of root class: "
-		      (or eif-compile-target
-			  (file-name-sans-extension
-			   (file-name-nondirectory (buffer-file-name)))))))
-  (setq eif-root-proc
-	(read-string "Name of root procedure: "
-		     eif-root-proc))
-  (let ((cmd (concat eif-compile-command
-		     " "    eif-compile-options
-		     " -o " eif-compile-target
-		     (if (eq system-type 'windows-nt) ".exe")
-		     " "    eif-compile-target
-		     " "    eif-root-proc))
-	(compilation-mode-hook (cons 'eif-compilation-mode-hook
-				     compilation-mode-hook)))
-    (compile-internal cmd "No more errors")))
-
-(defun eif-set-compile-options ()
-  "Set Eiffel compiler options."
-  (interactive)
-  (setq eif-compile-options
-	(read-string "Eiffel compiler options: " eif-compile-options)))
-
-;; Taken from Emacs 20.3 subr.el (just in case we're running under Emacs 19).
-(defun eif-split-string (string &optional separators)
-  "Split STRING into substrings separated by SEPARATORS.
-Each match for SEPARATORS is a splitting point.  The substrings
-between the splitting points are made into a list which is returned.
-If SEPARATORS is absent, it defaults to \"[ \\f\\t\\n\\r\\v]+\".
-
-If there is match for SEPARATORS at the beginning of STRING, we do not
-include a null substring for that.  Likewise, if there is a match
-at the end of STRING, we do not include a null substring for that."
-  (let ((rexp (or separators "[ \f\t\n\r\v]+"))
-	(start 0)
-	notfirst
-	(list nil))
-    (while (and (string-match rexp string
-			      (if (and notfirst
-				       (= start (match-beginning 0))
-				       (< start (length string)))
-				  (1+ start) start))
-		(< (match-beginning 0) (length string)))
-      (setq notfirst t)
-      (or (eq (match-beginning 0) 0)
-	  (and (eq (match-beginning 0) (match-end 0))
-	       (eq (match-beginning 0) start))
-	  (setq list
-		(cons (substring string start (match-beginning 0))
-		      list)))
-      (setq start (match-end 0)))
-    (or (eq start (length string))
-	(setq list
-	      (cons (substring string start)
-		    list)))
-    (nreverse list)))
-
-(defun eif-run ()
-  "Run a compiled Eiffel program."
-  (interactive)
-  (setq eif-run-command
-	(read-string "Command to run: "
-		     (or eif-run-command
-			 eif-compile-target
-			 (file-name-sans-extension
-			  (if (eq system-type 'windows-nt)
-			      buffer-file-name
-			    (file-name-nondirectory (buffer-file-name)))))))
-
-  (let* ((tmp-buf (current-buffer))
-	 (words   (eif-split-string eif-run-command))
-	 (cmd     (expand-file-name (car words))))
-
-    (apply 'make-comint cmd cmd nil (cdr words))
-    (switch-to-buffer tmp-buf)
-    (switch-to-buffer-other-window (concat "*" cmd "*"))))
-
-;; This has been loosened up to spot parts of messages that contain
-;; references to multiple locations.  Thanks to Andreas
-;; <nozone@sbox.tu-graz.ac.at>.  Also, the column number is a character
-;; count rather than a screen column, so we need to make sure that
-;; compilation-error-screen-columns is nil.  Note that in XEmacs this
-;; variable doesn't exist, so we end up in the wrong column.  Hey, at
-;; least we're on the correct line!
-(add-to-list 'compilation-error-regexp-alist
-	     '("^Line \\([0-9]+\\) column \\([0-9]+\\) in [^ ]+ (\\([^)]+\\.[Ee]\\))" 3 1 2))
-
-(defun eif-short ()
-  "Display the short form of an Eiffel class."
-  (interactive)
-  (let* ((class (read-string
-		 "Class or file: "
-		 (if (buffer-file-name)
-		     (file-name-nondirectory (buffer-file-name)))))
-	 (buf (get-buffer-create (concat "*Eiffel - short " class "*"))))
-
-    (shell-command (concat eif-short-command " " class) buf)
-    (save-excursion
-      (set-buffer buf)
-      (let ((font-lock-defaults eiffel-font-lock-defaults))
-	(font-lock-fontify-buffer))
-      (toggle-read-only 1))))
 
 ;;
 ;; Indentation macros.
@@ -542,106 +388,150 @@ at the end of STRING, we do not include a null substring for that."
   '(+ (* eif-string-continuation-indent eif-indent-increment)
       eif-extra-string-continuation-indent))
 
+(defmacro eif-preprocessor-indent-m ()
+  "Indentation amount for a preprocessor statement (in number of spaces)."
+  '(* eif-preprocessor-indent eif-indent-increment))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;          Keyword Regular Expression Variables.               ;;
+;;          Keyword Regular Expression Constants.               ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defconst eif-all-keywords-regexp
-  "\\(indexing\\|class\\|inherit\\|creation\\|feature\\|invariant\\|rename\
-\\|redefine\\|undefine\\|select\\|export\\|require\\|local\\|deferred\
-\\|do\\|once\\|ensure\\|alias\\|external\\|check\\|rescue\\|debug\\|if\
-\\|inspect\\|from\\|else\\|elseif\\|when\\|until\\|variant\\|loop\\|then\
-\\|obsolete\\|end\\|separate\\)[^a-z0-9_]"
-  "Regular Expression to identify the presence of any eiffel keyword in a line.
-Does not include `is'.")
+(defconst eif-non-id-char-regexp "\\S_" ;; "[^a-z0-9_]"
+  "The characters that are not part of identifiers.")
+
+(defun eif-post-anchor (regexp)
+  "Anchor given REGEXP with end-word delimiter and `eif-non-id-char-regexp'."
+  (concat "\\(" regexp "\\)\\>" eif-non-id-char-regexp))
+
+(defun eif-word-anchor (regexp)
+  "Anchor given REGEXP with word delimiters and `eif-non-id-char-regexp'."
+  (concat "\\<\\(" regexp "\\)\\>" eif-non-id-char-regexp))
+
+(defun eif-anchor (regexp)
+  "Anchor given REGEXP front and back to match line break or non-symbol char."
+  (concat "\\(^\\|\\S_\\<\\)\\(" regexp "\\)\\($\\|\\>\\S_\\)"))
 
 ;; Note invariant is handled as a special case since it is both a
 ;; class-level and a from-level keyword
 ;; Note obsolete is handled as a special case since it is both a
 ;; class-level and a feature-level keyword
 (defconst eif-class-level-keywords
-  "\\(indexing\\|class\\|deferred[ \t]+class\\|expanded[ \t]+class\\|separate[ \t]+class\\|inherit\\|creation\\|feature\\)[^a-z0-9_]"
+  "indexing\\|class\\|deferred[ \t]+class\\|expanded[ \t]+class\\|reference[ \t]+class\\|separate[ \t]+class\\|inherit\\|creation\\|feature"
   "Keywords introducing class-level clauses.
 Note that `invariant' and `obsolete' are not included here since can
 function as more than one type of keyword.")
 
+(defconst eif-class-level-keywords-regexp
+  (eif-word-anchor eif-class-level-keywords)
+  "Regexp of keywords introducing class level clauses, with some context.
+See `eif-class-level-keywords'.")
+
 (defconst eif-inherit-level-keywords
-  "\\(rename\\|redefine\\|undefine\\|select\\|export\\)"
+  "rename\\|redefine\\|undefine\\|select\\|export"
   "Those keywords which introduce subclauses of the inherit clause.")
 
 (defconst eif-feature-level-keywords
-  "\\(require\\|local\\|deferred\\|separate\\|do\\|once\\|ensure\\|alias\\|external\\)[^a-z0-9_]"
+  "require\\|local\\|deferred\\|separate\\|do\\|once\\|ensure\\|alias\\|external"
   "Those keywords which are internal to features (in particular, routines).")
+
+(defconst eif-feature-level-keywords-regexp
+  (eif-word-anchor eif-feature-level-keywords)
+  "Regexp of keywords internal to features (usually routines).
+See `eif-feature-level-keywords'.")
 
 (defconst eif-end-keyword "end" "The `end' keyword.")
 
 (defconst eif-end-on-current-line ".*[ \t]end[ \t]*;?[ \t]*\\(--.*\\)?$"
   "Regular expression to identify lines ending with the `end' keyword.")
 
-(defconst eif-non-id-char-regexp "[^a-z0-9_]"
-  "The characters that are not part of identifiers.")
-
-(defconst eif-end-keyword-regexp "\\(^\\|[^a-z0-9_]\\)end\\($\\|[^a-z0-9_]\\)"
-  "The `end' keyword with context.")
-
-(defconst eif-end-matching-keywords
-  "\\(check\\|class\\|debug\\|feature\\|rename\\|redefine\\|undefine\\|select\\|export\\|do\\|once[ \t\n]+[^\"]\\|deferred\\|separate\\|external\\|alias\\|if\\|inspect\\|from\\|debug\\)[^a-z0-9_]"
-  "Those keywords whose clause is terminated by an `end' keyword.")
-
 (defconst eif-control-flow-keywords
-  "\\(if\\|inspect\\|from\\|debug\\)"
+  "if\\|inspect\\|from\\|debug"
   "Keywords which introduce control-flow constructs.")
 
 (defconst eif-control-flow-matching-keywords
-  "\\(deferred\\|do\\|once\\|if\\|inspect\\|from\\|debug\\)[^a-z0-9_]"
+  (concat "deferred\\|do\\|once" "\\|" eif-control-flow-keywords)
   "Keywords that may cause the indentation of an `eif-control-flow-keyword'.
 If these occur prior to an `eif-control-flow-keyword' then the
 `eif-control-flow-keyword' is indented.  Note that technically, `end'
-is part of this list but it is handled separately in the functions
-\[eif-matching-indent\] and \[eif-matching-kw\].")
+is part of this list but it is handled separately in the function
+\[eif-matching-kw\].")
+
+(defconst eif-control-flow-matching-keywords-regexp
+  (eif-word-anchor eif-control-flow-matching-keywords)
+  "Regexp of keywords maybe causing indentation of `eif-control-flow-keyword'.
+See `eif-control-flow-keywords'.")
 
 (defconst eif-check-keyword "check"
   "The `check' keyword.")
 
-(defconst eif-check-keywords   "\\(check\\)[^a-z0-9_]"
+(defconst eif-check-keywords-regexp
+  (eif-word-anchor eif-check-keyword)
   "The `check' keyword (with trailing context).")
 
-(defconst eif-check-matching-keywords
-  "\\(deferred\\|do\\|once\\|if\\|inspect\\|from\\|debug\\)[^a-z0-9_]"
+;; FIXME: Doesn't work if once keyword is followed by a string on next
+;; line, but didn't get broken by this attempt at factoring.
+(defconst eif-check-matching-keywords-regexp
+  eif-control-flow-matching-keywords-regexp
   "Keywords that may cause the indentation of an `eif-check-keyword'.
 If these occur prior to an `eif-check-keyword' then the
 `eif-check-keyword' is indented.  Note that technically, `end' is part
-of this list but it is handled separately in the functions
-\[eif-matching-indent\] and \[eif-matching-kw\].  See also
-`eif-control-flow-matching-keywords'.")
+of this list but it is handled separately in the function
+\[eif-matching-kw\].  See also `eif-control-flow-matching-keywords-regexp'.")
+
+;; FIXME: This could be fixed or removed.
+(defconst eif-end-keyword-regexp "\\(^\\|[^a-z0-9_]\\)end\\($\\|[^a-z0-9_]\\)"
+  "The `end' keyword with context.")
+
+(defconst eif-end-matching-keywords
+  (concat "check\\|class\\|feature\\|rename\\|redefine\\|undefine" "\\|"
+	  "select\\|export\\|separate\\|external\\|alias" "\\|"
+	  eif-control-flow-matching-keywords)
+  "Those keywords whose clause is terminated by an `end' keyword.")
+
+(defconst eif-end-matching-keywords-regexp
+  (eif-word-anchor eif-end-matching-keywords)
+  "Regexp of keywords whose clause is terminated by an `end' keyword.
+See `eif-end-matching-keywords'.")
 
 (defconst eif-rescue-keyword "rescue"  "The `rescue' keyword.")
 
 (defconst eif-obsolete-keyword "obsolete"  "The `obsolete' keyword.")
 
-(defconst eif-rescue-keywords   "\\(rescue\\)[^a-z0-9_]"
+(defconst eif-rescue-keywords-regexp
+  (eif-word-anchor eif-rescue-keyword)
   "The `rescue' keyword (with trailing context).")
 
-(defconst eif-rescue-matching-keywords
-  "\\(deferred\\|do\\|once\\)[^a-z0-9_]"
+(defconst eif-rescue-matching-keywords-regexp
+  (eif-word-anchor "deferred\\|do\\|once")
   "Keywords that may cause the indentation of an `eif-rescue-keyword'.
 If these occur prior to an `eif-rescue-keyword' then the
 `eif-rescue-keyword' is indented.  Note that technically, `end' is
-part of this list but it is handled separately in the functions
-\[eif-matching-indent\] and \[eif-matching-kw\].  See also
-`eif-control-flow-matching-keywords'.")
+part of this list but it is handled separately in the function
+\[eif-matching-kw\].  See also `eif-control-flow-matching-keywords-regexp'.")
 
 (defconst eif-from-level-keywords
-  "\\(until\\|variant\\|loop\\)[^a-z0-9_]"
+  "until\\|variant\\|loop"
   "Keywords occuring inside of a from clause.")
+
+(defconst eif-from-level-keywords-regexp
+  (eif-word-anchor eif-from-level-keywords)
+  "Regexp of keywords occuring inside of a from clause.
+See `eif-from-level-keywords'.")
 
 (defconst eif-from-keyword  "from" "The keyword `from'.")
 
-(defconst eif-if-or-inspect-level-keywords "\\(elseif\\|else\\|when\\)[^a-z0-9_]"
+(defconst eif-if-or-inspect-level-keywords
+  "elseif\\|else\\|when"
   "Keywords occuring inside of an if or inspect clause.")
 
-(defconst eif-if-or-inspect-keyword "\\(if\\|inspect\\)[^a-z0-9_]"
-  "The `if' or `inspect' keywords.")
+(defconst eif-if-or-inspect-level-keywords-regexp
+  (eif-word-anchor eif-if-or-inspect-level-keywords)
+  "Regexp of keywords occuring inside of an if or inspect clause.
+See eif-if-or-inspect-level-keywords.")
+
+(defconst eif-if-or-inspect-keyword-regexp
+  (eif-word-anchor "if\\|inspect")
+  "Regexp matching the `if' or `inspect' keywords.")
 
 (defconst eif-then-keyword ".*[ \t)]then[ \t]*$"
   "The keyword `then' with possible leading text.")
@@ -653,19 +543,18 @@ part of this list but it is handled separately in the functions
 If one of these occur prior to an `eif-then-keyword' then this sets
 the indentation of the `eif-then-keyword'.  Note that technically,
 `end' is part of this list but it is handled separately in the
-functions \[eif-matching-indent\] and \[eif-matching-kw\].  See also
-`eif-control-flow-matching-keywords'.")
+function \[eif-matching-kw\].  See also
+`eif-control-flow-matching-keywords-regexp'.")
 
 (defconst eif-invariant-keyword "invariant" "The `invariant' keyword.")
 
 (defconst eif-invariant-matching-keywords
-  "\\(from\\|feature\\)"
+  "from\\|feature"
   "Keywords that may cause the indentation of an `eif-invarient-keyword'.
 If one of these occurs prior to an `eif-invariant-keyword' then the
 `eif-invariant-keyword' is indented.  Note that technically, `end' is
-part of this list but it is handled separately in the functions
-\[eif-matching-indent\] and \[eif-matching-kw\].  See also
-`eif-control-flow-matching-keywords'.")
+part of this list but it is handled separately in the function
+\[eif-matching-kw\].  See also `eif-control-flow-matching-keywords-regexp'.")
 
 (defconst eif-obsolete-matching-keywords
   "\\(is\\|class\\)"
@@ -673,24 +562,33 @@ part of this list but it is handled separately in the functions
 If one of these occurs prior to an `eif-obsolete-keyword' then the
 `eif-obsolete-keyword' is indented.")
 
-(defconst eif-white-space-regexp       "[ \t]*"
-  "RE to locate whitespace.")
+(defconst eif-create-keyword
+  "create"
+  "Eiffel class keyword.  Can be used at class or minor level.")
 
-(defconst eif-comment-line-regexp      "[ \t]*\\(--.*\\)$"
-  "RE to match a line with a comment on it.")
+(defconst eif-create-keyword-regexp
+  (eif-post-anchor "create")
+  "Regexp matching `create' keyword, with trailing context.")
 
-(defconst eif-non-source-line          "[ \t]*\\(--.*\\)?$"
-  "RE to match a line with a only a comment or whitespace.")
-
-(defconst eif-variable-or-const-regexp "[^()\n]*:[^=].*"
-  "RE to match a variable or constant declaration.")
+(defconst eif-indentation-keywords
+  (concat "indexing\\|rescue\\|inherit\\|creation" "\\|"
+	  "invariant\\|require\\|local\\|ensure\\|obsolete" "\\|"
+	  eif-from-level-keywords "\\|"
+	  eif-if-or-inspect-level-keywords "\\|"
+	  eif-end-matching-keywords)
+  "Keywords that match any eiffel keyword triggering indentation.")
 
 (defconst eif-indentation-keywords-regexp
-  "\\(indexing\\|class\\|check\\|rescue\\|inherit\\|creation\\|feature\\|invariant\\|rename\\|redefine\\|undefine\\|select\\|export\\|require\\|local\\|deferred\\|separate\\|do\\|once\\|ensure\\|alias\\|external\\|if\\|inspect\\|from\\|debug\\|else\\|elseif\\|when\\|until\\|variant\\|invariant\\|loop\\|obsolete\\)[^a-z0-9_]"
-  "RE to identify the presence of any eiffel keyword triggering indentation.")
+  (eif-word-anchor eif-indentation-keywords)
+  "Regexp of keywords that match any eiffel keyword triggering indentation.
+See `eif-indentation-keywords'.")
+
+(defconst eif-once-non-indent-regexp
+  "\\s-*once\\(\\s-\\|\n\\)+\""
+  "Regexp of Eiffel once keyword in context not affecting indentation.")
 
 (defconst eif-feature-indentation-keywords-regexp
-  "\\(creation\\|feature\\)[^a-z0-9_]"
+  (eif-word-anchor "creation\\|feature")
   "Keywords which denote the presence of features following them.")
 
 (defconst eif-is-keyword-regexp "\\(.*[ \t)]\\)?is[ \t]*\\(--.*\\)?$"
@@ -700,13 +598,106 @@ If one of these occurs prior to an `eif-obsolete-keyword' then the
   ".*([^)]*)\\([ \t\n]*\\|[ \t\n]*:[][ \t\nA-Za-x0-9_,]*\\)is[ \t]*\\(--.*\\)?$"
   "The `is' keyword (with some context).")
 
+(defconst eif-operator-keywords
+  "and\\|or\\|implies"
+  "Eiffel operator keywords.")
+
 (defconst eif-operator-regexp
-  "[ \t]*\\([@*/+]\\|-[^-]\\|\\<\\(and\\|or\\|implies\\)[ \t(]\\)"
-  "Eiffel operators - used to identify continuation lines.")
+  (concat "[ \t]*\\([@*/+]\\|-[^-]\\|\\<\\("
+	  eif-operator-keywords
+	  "\\)[ \t(]\\)")
+  "Eiffel operators - used to identify continuation lines.
+See `eif-operator-keywords'.")
 
 (defconst eif-operator-eol-regexp
-  ".*\\([@*/+-]\\|\\<and\\|\\<or\\|\\<implies\\|:=\\)[ \t]*\\(--.*\\)?$"
+  (concat ".*\\([@*/+-]\\|\\<\\(" eif-operator-keywords
+	  "\\)\\|:=\\)[ \t]*\\(--.*\\)?$")
   "Eiffel operators - used to identify continuation lines.")
+
+(defconst eif-misc-keywords
+  (concat "agent\\|all\\|as\\|frozen\\|infix\\|like" "\\|"
+	  "old\\|precursor\\|prefix\\|strip\\|unique\\|xor" "\\|"
+	  "expanded\\|reference")
+  "Eiffel miscellaneous keywords.")
+
+(defconst eif-preprocessor-keywords
+  "#\\(define\\|undefine\\|ifdef\\|else\\|endif\\|ifndef\\|include\\)"
+  "Eiffel GOBO preprocessor keywords.")
+
+(defconst eif-preprocessor-keywords-regexp
+  (eif-post-anchor eif-preprocessor-keywords)
+  "Eiffel GOBO preprocessor keywords, with context.
+See `eif-preprocessor-keywords'.")
+
+(defconst eif-smarteiffel-guru-keywords
+  (concat "c_inline_c\\|c_inline_h\\|to_pointer" "\\|"
+	  "is_expanded_type\\|is_basic_expanded_type" "\\|"
+	  "object_size\\|object_id_memory" "\\|"
+	  "se_guru01\\|se_guru02\\|se_guru03")
+  "Eiffel keywords used by gurus with the SmartEiffel compiler.")
+
+(defconst eif-major-variable-keywords
+  (concat "[Vv]oid\\|[Rr]esult\\|[Cc]urrent\\|[Tt]rue\\|[Ff]alse" "\\|"
+	  "[Pp]recursor\\|io\\|std_input\\|std_output\\|std_error")
+  "Eiffel keywords representing major variables.")
+
+(defconst eif-standard-class-keywords
+  (concat "ANY\\|BIT\\|BOOLEAN\\|CHARACTER\\|DOUBLE\\|GENERAL" "\\|"
+	  "INTEGER\\|NONE\\|POINTER\\|REAL\\|STRING")
+  "Eiffel keywords representing standard classes.")
+
+(defconst eif-all-keywords
+  (concat eif-indentation-keywords    "\\|"
+	  eif-solitary-then-keyword   "\\|"
+	  eif-create-keyword          "\\|"
+	  eif-end-keyword)
+  "Regexp matching (nearly) any eiffel keyword in a line.
+Does not include `is'.")
+
+(defconst eif-all-keywords-regexp
+  (concat "\\("
+	  (eif-word-anchor eif-all-keywords) "\\|"
+	  eif-preprocessor-keywords-regexp   "\\)")
+  "Anchored regexp matching (nearly) any eiffel keyword in a line.
+Does not include `is'.  See `eif-all-keywords'.")
+
+(defconst eiffel-comment-start-skip
+  "--+|?[ \t]*"
+  "Regexp matching the beginning of an Eiffel comment.")
+
+(defconst eif-non-source-line
+  (concat "[ \t]*\\(\\(" "--" "\\|"
+	  eif-preprocessor-keywords-regexp "\\).*\\)?$")
+  "RE matching line with only whitespace and comment or preprocessor keyword.")
+
+(defconst eif-variable-or-const-regexp "[^()\n]*:[^=].*"
+  "RE to match a variable or constant declaration.")
+
+;; Factor out some important important regexps for use in
+;; eif-{beginning,end}-of-feature.
+
+(defconst eif-routine-begin-regexp
+  "\\([a-z_][a-zA-Z_0-9]*\\)\\s-*\\(([^)]*)\\)?\\s-*\\(:\\s-*[A-Z][A-Za-z0-9_]*\\)?\\s-*\\<is\\>\\s-*\\(--.*\\)?$"
+  "Regexp matching the beginning of an Eiffel routine declaration.")
+
+(defconst eif-attribute-regexp
+  (concat "[a-z_][^-:\n]*:\\s-*"
+	  "\\(like\\s-*[a-zA-Z][a-z_0-9]*\\|"
+	  "\\(\\(expanded\\|reference\\)\\s-*\\)?[A-Z][A-Z_0-9]*"
+	  "\\(\\s-*\\[[^-\n]*\\]\\)?\\)"
+	  "\\s-*\\($\\|[;)].*\\|--.*\\)")
+  "Regexp matching an Eiffel attribute, parameter or local variable.")
+
+(defconst eif-constant-regexp
+  "[a-z_][^-:\n]*:[^-\n]*\\<is\\>\\s-*[^ \t\n]"
+  "Regexp matching an Eiffel constant declaration.")
+
+(defconst eif-probably-feature-regexp
+  (concat "\\(" eif-routine-begin-regexp
+	  "\\|" eif-attribute-regexp
+	  "\\|" eif-constant-regexp "\\)")
+  "Regexp probably matching an Eiffel feature.
+This will also match local variable and parameter declarations.")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -716,53 +707,440 @@ If one of these occurs prior to an `eif-obsolete-keyword' then the
 
 (defvar eif-matching-kw-for-end nil)
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;
+;; Font-lock support.
+;;
+;; Most of this font-lock code was originally contributed by: Karl
+;; Landström <kala9469@student.su.se>.  Much of it has now been
+;; factored out above.
+;;
+
+(defconst eiffel-font-lock-keywords-1
+  `(;; hidden comments
+    ("--|.*" 0 font-lock-keyword-face t)
+    ;; routines
+    (,(concat "^[ \t]*" eif-routine-begin-regexp) 1 font-lock-function-name-face ))
+  "Regular expressions to use with font-lock mode.")
+
+(defconst eiffel-font-lock-keywords-2
+  (append
+   eiffel-font-lock-keywords-1
+   `(;; Assertions.
+     ;; FIXME: Cyril thinks these should just be part of the keywords below.
+     (,(eif-anchor "check\\|ensure then\\|ensure\\|invariant\\|require else\\|require\\|variant") 2 font-lock-reference-face nil)
+
+     ;; Preprocessor keywords.  Note that, by luck more than planning,
+     ;; these aren't font-locked when they're not indented, since the
+     ;; '#' isn't a word boundary (which is added by eif-anchor).
+     (,(eif-post-anchor eif-preprocessor-keywords) 2 font-lock-builtin-face nil)
+
+     ;; Keywords.  The first few can appear in conjunction with other
+     ;; keywords, and the anchored regexp doesn't cater for overlaps,
+     ;; thus there are several entries here.
+     (,(eif-anchor "class\\|is\\|not")        2 font-lock-keyword-face nil)
+     (,(eif-anchor eif-operator-keywords)     2 font-lock-keyword-face nil)
+     (,(eif-anchor eif-misc-keywords)         2 font-lock-keyword-face nil)
+     (,(eif-anchor eif-all-keywords)          2 font-lock-keyword-face nil)
+
+     ;; Quoted expr's in comments.
+     ("`[^`'\n]*'" 0 font-lock-string-face t)
+
+     ;; Classes.
+     (,(eif-anchor eif-standard-class-keywords) 2 font-lock-type-face)))
+   "Regular expressions to use with font-lock mode and level 2 fontification.")
+
+(defconst eiffel-font-lock-keywords-3
+  (append
+   eiffel-font-lock-keywords-2
+   `(;; attributes/parameters/local variables
+     (,(concat "^[ \t]*" eif-attribute-regexp) (0 nil)
+      ("\\s-*\\(\\<[a-z][a-zA-Z_0-9]*\\)\\s-*\\(,\\|:[^;\n]*\\|).*\\)"
+       (re-search-backward "\\((\\|^\\)" nil t)
+       (end-of-line)
+       (1 font-lock-variable-name-face)))
+     ;; constants
+     (,(concat "^[ \t]*" eif-constant-regexp) (0 nil)
+      ("\\s-*\\(\\<[A-Za-z][a-zA-Z_0-9]*\\)\\s-*\\(,\\|:.*\\)"
+       (beginning-of-line) (end-of-line)
+       (1 font-lock-constant-face)))))
+  "Regular expressions to use with font-lock mode and level 3 fontification.")
+
+(defconst eiffel-font-lock-keywords-4
+  ;; SmartEiffel guru keywords and major variables.
+  (append
+   eiffel-font-lock-keywords-3
+   `((,(eif-anchor eif-smarteiffel-guru-keywords) 2 font-lock-warning-face)
+     (,(eif-anchor eif-major-variable-keywords) 2 font-lock-constant-face))))
+
+(defvar eiffel-font-lock-keywords eiffel-font-lock-keywords-1
+  "Default expressions to highlight in Eiffel mode.
+See also `c-font-lock-extra-types'.")
+
+(defconst eiffel-font-lock-defaults
+  '((eiffel-font-lock-keywords
+     eiffel-font-lock-keywords-1
+     eiffel-font-lock-keywords-2
+     eiffel-font-lock-keywords-3
+     eiffel-font-lock-keywords-4)
+    nil nil nil nil))
+
+(and (boundp 'font-lock-defaults-alist)
+     (add-to-list 'font-lock-defaults-alist
+		  (cons 'eiffel-mode
+			eiffel-font-lock-defaults)))
+
+;; font-lock faces used by GNU Emacs and XEmacs are inconsistent.
+(if (and (not (boundp 'font-lock-constant-face))
+	 (fboundp 'copy-face))
+    (copy-face 'font-lock-variable-name-face 'font-lock-constant-face))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;
+;; Compilation support for GNU SmartEiffel.
+;;
+
+(defvar eif-compile-dir nil
+  "Current directory where Eiffel compilations are taking place.
+Possibly used for error location.")
+
+(defvar eif-root-class nil
+  "Current Eiffel root class being compiled/debugged.")
+
+(defvar eif-compile-target nil
+  "Current Eiffel compilation target.")
+
+(defvar eif-debug-target nil
+  "Current Eiffel debug target.")
+
+(defvar eif-root-proc "make"
+  "Current Eiffel root procedure.")
+
+(defvar eif-run-command nil
+  "Current command to run after Eiffel compile.")
+
+(defvar eif-debug-command nil
+  "Current debug command to run after Eiffel debug compile.")
+
+(defun eif-compilation-mode-hook ()
+  "Hook function to set local value for `compilation-error-screen-columns'.
+This should be nil for SmartEiffel compiles, because column positions are
+returned as character positions rather than screen columns."
+  ;; In Emacs > 20.7 compilation-error-screen-columns is buffer local.
+  (or (assq 'compilation-error-screen-columns (buffer-local-variables))
+      (make-local-variable 'compilation-error-screen-columns))
+  (setq compilation-error-screen-columns nil))
+
+(defun eif-compile ()
+  "Compile an Eiffel root class."
+  (interactive)
+  (eif-compile-prompt)
+  (eif-compile-internal))
+
+(defun eif-set-compile-options ()
+  "Set Eiffel compiler options."
+  (interactive)
+  (setq eif-compile-options
+	(read-string "Eiffel compiler options: " eif-compile-options)))
+
+;; Taken from Emacs 20.3 subr.el (just in case we're running under Emacs 19).
+(defun eif-split-string (string &optional separators)
+  "Split STRING into substrings separated by SEPARATORS.
+Each match for SEPARATORS is a splitting point.  The substrings
+between the splitting points are made into a list which is returned.
+If SEPARATORS is absent, it defaults to \"[ \\f\\t\\n\\r\\v]+\".
+
+If there is match for SEPARATORS at the beginning of STRING, we do not
+include a null substring for that.  Likewise, if there is a match
+at the end of STRING, we do not include a null substring for that."
+  (let ((rexp (or separators "[ \f\t\n\r\v]+"))
+	(start 0)
+	notfirst
+	(list nil))
+    (while (and (string-match rexp string
+			      (if (and notfirst
+				       (= start (match-beginning 0))
+				       (< start (length string)))
+				  (1+ start) start))
+		(< (match-beginning 0) (length string)))
+      (setq notfirst t)
+      (or (eq (match-beginning 0) 0)
+	  (and (eq (match-beginning 0) (match-end 0))
+	       (eq (match-beginning 0) start))
+	  (setq list
+		(cons (substring string start (match-beginning 0))
+		      list)))
+      (setq start (match-end 0)))
+    (or (eq start (length string))
+	(setq list
+	      (cons (substring string start)
+		    list)))
+    (nreverse list)))
+
+(defun eif-run ()
+  "Run a compiled Eiffel program."
+  (interactive)
+  (setq eif-run-command
+	(read-string "Command to run: "
+		     (or eif-run-command
+			 eif-compile-target
+			 (file-name-sans-extension
+			  (if (eq system-type 'windows-nt)
+			      buffer-file-name
+			    (file-name-nondirectory (buffer-file-name)))))))
+  (eif-run-internal))
+
+(defun eif-debug ()
+  "Run the SmartEiffel debugger."
+  (interactive)
+
+  (eif-compile-prompt)
+  
+  (setq eif-debug-target
+	(file-name-sans-extension
+	 (read-string "Debug target name: "
+		      (or eif-debug-target
+			  (concat eif-compile-target "_debug")))))
+    
+  (let* ((eif-compile-options (concat "-sedb " eif-compile-options))
+	 (eif-compile-target eif-debug-target)
+	 (buff (eif-compile-internal))
+	 (proc (get-buffer-process buff)))
+
+    ;; This works under GNU Emacs, but hangs under at least some
+    ;; versions of XEmacs if there is input pending.
+    (while (eq (process-status proc) 'run)
+      (sit-for 1))
+
+    (if (= (process-exit-status proc) 0)
+	(progn
+	  (setq eif-debug-command
+		(read-string "Debugger command to run: "
+			     (or eif-debug-command
+				 eif-debug-target
+				 (file-name-sans-extension
+				  (if (eq system-type 'windows-nt)
+				      buffer-file-name
+				    (file-name-nondirectory
+				     (buffer-file-name)))))))
+	  (let ((eif-run-command eif-debug-command))
+	    (eif-run-internal))))))
+
+(defun eif-compile-prompt ()
+  "Prompt for information required to compile an Eiffel root class."
+
+  ;; Do the save first, since the user might still have their hand on
+  ;; the mouse.
+  (save-some-buffers (not compilation-ask-about-save) nil)
+
+  (setq eif-compile-dir (file-name-directory (buffer-file-name)))
+  (setq eif-root-class
+	(file-name-sans-extension
+	 (read-string "Name of root class: "
+		      (or eif-compile-target
+			  (file-name-sans-extension
+			   (file-name-nondirectory (buffer-file-name)))))))
+  (setq eif-compile-target eif-root-class)
+  (setq eif-root-proc
+	(read-string "Name of root procedure: "
+		     eif-root-proc)))
+
+(defun eif-compile-internal ()
+  "Compile an Eiffel root class.  Internal version.
+Returns the same thing as \\[compile-internal] - the compilation buffer."
+
+  (let ((cmd (concat eif-compile-command
+		     " "    eif-compile-options
+		     " -o " eif-compile-target
+		     (if (eq system-type 'windows-nt) ".exe")
+		     " "    eif-root-class
+		     " "    eif-root-proc))
+	(compilation-mode-hook (cons 'eif-compilation-mode-hook
+				     compilation-mode-hook)))
+    (compile-internal cmd "No more errors")))
+
+(defun eif-run-internal ()
+  "Run a compiled Eiffel program.  Internal version."
+
+  (let* ((tmp-buf (current-buffer))
+	 (words   (eif-split-string eif-run-command))
+	 (cmd     (expand-file-name (car words))))
+
+    (apply 'make-comint cmd cmd nil (cdr words))
+    (switch-to-buffer tmp-buf)
+    (switch-to-buffer-other-window (concat "*" cmd "*"))))
+
+;; This has been loosened up to spot parts of messages that contain
+;; references to multiple locations.  Thanks to Andreas
+;; <nozone@sbox.tu-graz.ac.at>.  Also, the column number is a character
+;; count rather than a screen column, so we need to make sure that
+;; compilation-error-screen-columns is nil.  Note that in XEmacs this
+;; variable doesn't exist, so we end up in the wrong column.  Hey, at
+;; least we're on the correct line!
+(add-to-list 'compilation-error-regexp-alist
+	     '("^Line \\([0-9]+\\) column \\([0-9]+\\) in [^ ]+ (\\([^)]+\\.[Ee]\\))" 3 1 2))
+
+(defun eif-short ()
+  "Display the short form of an Eiffel class."
+  (interactive)
+  (let* ((class (read-string
+		 "Class or file: "
+		 (if (buffer-file-name)
+		     (file-name-nondirectory (buffer-file-name)))))
+	 (buf (get-buffer-create (concat "*Eiffel - short " class "*"))))
+
+    (shell-command (concat eif-short-command " " class) buf)
+    (save-excursion
+      (set-buffer buf)
+      (let ((font-lock-defaults eiffel-font-lock-defaults))
+	(font-lock-fontify-buffer))
+      (toggle-read-only 1))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;                      Utility Functions.                      ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defun eif-feature-quote ()
+  "Put a `' around the current feature name."
+  (interactive)
+  (save-excursion
+    ;; Only try to go back to the beginning of the feature if we're
+    ;; not already there.
+    (if (/= (point)
+	    (save-excursion
+	      (forward-sexp)
+	      (backward-sexp)
+	      (point)))
+	(backward-sexp))
+    (insert "`")
+    (forward-sexp)
+    (insert "'"))
+  (if (looking-at "'")
+      (forward-char 1)))
+
+(defun eif-peeking-backwards-at (regexp)
+  "Return non-nil is previous character exists and is matched by REGEXP.
+The match is actually an unbounded match starting at the previous character."
+  (save-excursion
+    (save-match-data
+      (and (not (bobp))
+	   (or (backward-char) t)
+	   (looking-at regexp)))))
+
+(defsubst eif-in-comment-p ()
+  "Return t if point is in a comment."
+  (interactive)
+  (save-excursion
+    (nth 4 (parse-partial-sexp
+ 	    (save-excursion (beginning-of-line) (point))
+ 	    (point)))))
+
+(defun eif-in-comment-or-quoted-string-p ()
+  "Return t if point is in a comment or quoted string."
+  (or (eif-in-comment-p)
+      (eif-in-quoted-string-p)))
+  
+(defun eif-not-in-comment-or-quoted-string-p ()
+  "Return t if point is not in a comment or quoted string."
+  (not (eif-in-comment-or-quoted-string-p)))
+  
+(defun eif-near-comment-p ()
+  "Return t if point is close enough to a comment for filling purposes."
+  (or (eif-in-comment-p)
+      (and (or (looking-at comment-start-skip)
+	       (eif-peeking-backwards-at comment-start-skip))
+	   (not (eif-in-quoted-string-p)))
+      (looking-at (concat "[ \t]*" comment-start-skip))))
+
+(defun eif-re-search-forward (regexp &optional limit noerror)
+  "Search forward from point for REGEXP not in comment or string.
+`case-fold-search' is set to nil when searching.  For details on other
+arguments see \\[re-search-forward]."
+
+  (interactive "sRE search: ")
+  (let ((start (point))
+	found case-fold-search)
+    (while (and (setq found (re-search-forward regexp limit noerror))
+		(eif-in-comment-or-quoted-string-p)))
+    (if (and found
+	    (eif-not-in-comment-or-quoted-string-p))
+	found
+      (if (eq noerror t)
+	  (goto-char start))
+      nil)))
+
+(defun eif-re-search-backward (regexp &optional limit noerror)
+  "Search backward from point for REGEXP not in comment or string.
+`case-fold-search' is set to nil when searching.  For details on other
+arguments see \\[re-search-forward]."
+  (interactive "sRE search: ")
+  (let ((start (point))
+	found case-fold-search)
+    (while (and (setq found (re-search-backward regexp limit noerror))
+		(eif-in-comment-or-quoted-string-p)))
+    (if (and found
+	    (eif-not-in-comment-or-quoted-string-p))
+	found
+      (if (eq noerror t)
+	  (goto-char start))
+      nil)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;                      Indentation Functions.                  ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(defun eif-skip-leading-whitespace ()
+  "Move to the first non-whitespace character on the current line."
+      (end-of-line)
+      (let ((line-end (point)))
+	(beginning-of-line)
+	(skip-syntax-forward "-" line-end)))
+
 (defun eif-calc-indent ()
   "Calculate the indentation of the current line of eiffel code.
-This function generally assumes that the preceding line of code is
-indented properly, although lines containing certain class-level
-constructs do not require correct indentation of the preceding line."
+This function handles the case where there is a keyword that affects
+indentation at the beginning of the current line.  For lines that
+don't start with a relevant keyword, the calculation is handed off to
+\\[eif-calc-non-keyword-indent]."
   (let ((indent   0)
-	(line-end 0)
-	originally-looking-at-comment originally-looking-at-lone-string
-	kw-match continuation id-colon)
+	kw-match)
 
     (save-excursion
-
-      ;; Save location of line-end and skip past leading white space.
-      (end-of-line)
-      (setq line-end   (point))
-      (beginning-of-line)
-      (re-search-forward eif-white-space-regexp line-end t)
-
-      ;; Is the line we are trying to indent a comment line?
-      (setq originally-looking-at-comment (looking-at eif-comment-line-regexp))
-
-      ;; Is the line we are trying to indent a lone string?
-      (setq originally-looking-at-lone-string (looking-at "\"[^\"]*\"[ \t]*$"))
-
-      ;; Look for a keyword on the current line
+      (eif-skip-leading-whitespace)
+      
+      ;; Look for a keyword on the current line.
       (if (looking-at eif-all-keywords-regexp)
 
-	  ;; Then we are looking at a keyword
-	  (cond ((looking-at eif-class-level-keywords)
+	  (cond ((looking-at eif-create-keyword-regexp)
+		 ;; Class-level or minor occurence?
+		 (if (save-excursion (eif-find-beginning-of-feature))
+		     ;; Minor.
+		     (setq indent (eif-calc-indent-non-keyword))
+		   ;; Class-level.
+		   (setq indent (eif-class-level-kw-indent-m))))
+		;; There's possibly a better way of coding this exception.
+		((looking-at eif-once-non-indent-regexp)
+		 (setq indent (eif-calc-indent-non-keyword)))
+		((looking-at eif-class-level-keywords-regexp)
 		 ;; File level keywords (indent defaults to 0)
 		 (setq indent (eif-class-level-kw-indent-m)))
 		((looking-at eif-inherit-level-keywords)
 		 ;; Inherit level keywords (indent defaults to
 		 ;; 2*eif-indent-increment)
 		 (setq indent (eif-inherit-level-kw-indent-m)))
-		((looking-at eif-feature-level-keywords)
+		((looking-at eif-feature-level-keywords-regexp)
 		 ;; Feature level keywords (indent defaults to
 		 ;; (eif-feature-level-indent-m) + eif-indent-increment)
 		 (setq indent (eif-feature-level-kw-indent-m)))
 		((looking-at eif-end-keyword)
 		 ;; End keyword (indent to level of matching keyword)
 		 (if (string-match "end"
-				   (eif-matching-kw eif-end-matching-keywords))
+				   (eif-matching-kw
+				    eif-end-matching-keywords-regexp))
 		     ;; Then
 		     (if (= eif-matching-indent
 			    (eif-feature-level-kw-indent-m))
@@ -773,6 +1151,7 @@ constructs do not require correct indentation of the preceding line."
 			     (- eif-matching-indent eif-indent-increment)))
 		   ;; Else
 		   (setq indent eif-matching-indent))
+		 ;; FIXME: This is broken!!!
 		 (if (<= indent (eif-feature-level-indent-m))
 		     (save-excursion
 		       (end-of-line)
@@ -790,19 +1169,22 @@ constructs do not require correct indentation of the preceding line."
 		 ;;  of the preceding "do" plus the value of
 		 ;;  eif-indent-increment
 		 (setq kw-match
-		       (eif-matching-kw eif-control-flow-matching-keywords))
+		       (eif-matching-kw
+			eif-control-flow-matching-keywords-regexp))
 		 (cond ((string-match "end" kw-match)
 			(setq indent eif-matching-indent))
 		       (t
 			(setq indent
 			      (+ eif-matching-indent eif-indent-increment)))))
-		((looking-at eif-check-keywords)
+		((looking-at eif-check-keywords-regexp)
 		 ;; Check keyword
 		 ;;  Indent to level of preceding "end"+eif-indent-increment or
-		 ;;  if no preceding "end" is found, indent to the level
-		 ;;  of the preceding eif-check-matching-keywords plus the
+		 ;;  if no preceding "end" is found, indent to the level of
+		 ;;  the preceding eif-check-matching-keywords-regexp plus the
 		 ;;  value (eif-indent-increment + eif-check-keyword-indent).
-		 (setq kw-match (eif-matching-kw eif-check-matching-keywords))
+
+		 (setq kw-match (eif-matching-kw
+				 eif-check-matching-keywords-regexp))
 		 (cond ((string-match "end" kw-match)
 			(setq indent (+ eif-matching-indent
 					(eif-check-keyword-indent-m))))
@@ -811,42 +1193,44 @@ constructs do not require correct indentation of the preceding line."
 			      (+ eif-matching-indent
 				 (+ eif-indent-increment
 				    (eif-check-keyword-indent-m)))))))
-		((looking-at eif-rescue-keywords)
+		((looking-at eif-rescue-keywords-regexp)
 		 ;; Rescue keyword
 		 ;;  Indent to level of preceding "end"+eif-indent-increment or
-		 ;;  if no preceding "end" is found, indent to the level
-		 ;;  of the preceding eif-rescue-matching-keywords plus the
+		 ;;  if no preceding "end" is found, indent to the level of
+		 ;;  the preceding eif-rescue-matching-keywords-regexp plus the
 		 ;;  value (eif-indent-increment + eif-rescue-keyword-indent).
-		 (setq kw-match (eif-matching-kw eif-rescue-matching-keywords))
+		 (setq kw-match (eif-matching-kw
+				 eif-rescue-matching-keywords-regexp))
 		 (cond ((string-match "end" kw-match)
 			(setq indent (+ eif-matching-indent
 					(eif-rescue-keyword-indent-m))))
 		       (t
 			(setq indent eif-matching-indent))))
-		((looking-at eif-from-level-keywords)
+		((looking-at eif-from-level-keywords-regexp)
 		 ;; From level keywords (indent to level of matching "From")
 		 (if (string-match "end" (eif-matching-kw eif-from-keyword))
 		     ;; Closest matching KW is `end'.
 		     (setq indent (- eif-matching-indent eif-indent-increment))
 		   ;; Closest matching KW is one of `eif-from-keyword'.
 		   (setq indent eif-matching-indent)))
-		((looking-at eif-if-or-inspect-level-keywords)
+		((looking-at eif-if-or-inspect-level-keywords-regexp)
 		 ;; If level keywords (indent to level of matching
 		 ;; "If" or "Inspect")
 		 (if (string-match "end"
-				   (eif-matching-kw eif-if-or-inspect-keyword))
+				   (eif-matching-kw
+				    eif-if-or-inspect-keyword-regexp))
 		     ;; Closest matching KW is `end'.
 		     (setq indent (- eif-matching-indent eif-indent-increment))
-		   ;; Closest matching KW is one of `eif-if-or-inspect-keyword'.
+		   ;; Closest matching KW is one of `eif-if-or-inspect-keyword-regexp'.
 		   (setq indent eif-matching-indent)))
 		((looking-at eif-solitary-then-keyword)
 		 ;; Handles case where "then" appears on a line by itself
-		 ;;   (Indented to the level of the matching if, elseif or when)
-		 (setq indent (+ (eif-matching-indent eif-then-matching-keywords)
-				 (eif-then-indent-m))))
+		 ;;   (Indented to level of the matching if, elseif or when)
+		 (eif-matching-kw eif-then-matching-keywords)
+		 (setq indent (+ eif-matching-indent (eif-then-indent-m))))
 		((looking-at eif-invariant-keyword)
 		 ;; Invariant keyword
-		 ;;   (Indented to the level of the matching from or feature)
+		 ;;   (Indented to level of the matching from or feature)
 		 (if (string-match "from"
 				   (eif-matching-kw eif-invariant-matching-keywords))
 		     ;; Then - loop invariant
@@ -861,165 +1245,191 @@ constructs do not require correct indentation of the preceding line."
 		     ;; Then - feature obsolete
 		     (setq indent (eif-feature-level-kw-indent-m))
 		   ;; Else - class obsolete
-		   (setq indent (eif-class-level-kw-indent-m)))))
+		   (setq indent (eif-class-level-kw-indent-m))))
+		((looking-at eif-preprocessor-keywords-regexp)
+		 (setq indent (eif-preprocessor-indent-m))))
+	;; No keyword.  Hand off...
+	(setq indent (eif-calc-indent-non-keyword))))
+    indent))
 
-	;; Else no keyword on current line,
-	;;   are we in a multi-line parenthesis expression
+(defun eif-calc-indent-non-keyword ()
+  "Calculate indentation of current Eiffel code line, without leading keyword.
+This function generally assumes that the preceding line of code is
+indented properly, and usually bases the indentation of the current
+line on that preceding line."
+  (let ((indent   0)
+	originally-looking-at-comment originally-looking-at-lone-string
+	continuation id-colon)
 
-	(if (or (and (> (eif-in-paren-expression) 0)
-		     (> (setq indent (eif-indent-multi-line)) -1))
-		(setq indent (eif-manifest-array-indent)))
+    (save-excursion
+      (eif-skip-leading-whitespace)
 
-	    ;; multi-line parenthesis expression
-	    ;; Move string continuation lines as per configuration.
-	    (if (looking-at "%")
-		(setq indent (+ indent (eif-string-continuation-indent-m))))
+      ;; Is the line we are trying to indent a comment line?
+      (setq originally-looking-at-comment (looking-at comment-start-skip))
 
-	  ;; Else Find the first preceding line with non-comment source on it
-	  ;; that is not a continuation line of a multi-line parnethesized
-	  ;; expression.
+      ;; Is the line we are trying to indent a lone string?
+      (setq originally-looking-at-lone-string (looking-at "\"[^\"]*\"[ \t]*$"))
 
-	  ;; Record whether this line begins with an operator.  We assume
-	  ;; that the line is a continuation line if it begins with an operator
-	  (beginning-of-line)
-	  (if (looking-at eif-operator-regexp)
-	      (setq continuation t)
-	    (setq continuation nil))
-	  ;; Record whether the line being indented begins with an "<id> :"
-	  ;; This is used in indenting assertion tag expressions.
-	  (if (looking-at "[ \t]*[a-zA-Z0-9_]+[ \t]*:")
-	      (setq id-colon t)
-	    (setq id-colon nil))
+      ;; Are we in a multi-line parenthesis expression?
+      (if (or (and (> (eif-in-paren-expression) 0)
+		   (> (setq indent (eif-indent-multi-line)) -1))
+	      (setq indent (eif-manifest-array-indent)))
 
+	  ;; Multi-line parenthesis expression.
+	  ;; Move string continuation lines as per configuration.
+	  (if (looking-at "%")
+	      (setq indent (+ indent (eif-string-continuation-indent-m))))
+
+	;; Else Find the first preceding line with non-comment source on it
+	;; that is not a continuation line of a multi-line parenthesized
+	;; expression (and isn't a preprocessor line :-).
+
+	;; Record whether this line begins with an operator.  We assume
+	;; that the line is a continuation line if it begins with an operator
+	(beginning-of-line)
+	(setq continuation (looking-at eif-operator-regexp))
+
+	;; Record whether the line being indented begins with an "<id> :"
+	;; This is used in indenting assertion tag expressions.
+	(setq id-colon (looking-at "[ \t]*[a-zA-Z0-9_]+[ \t]*:"))
+	
+	(forward-line -1)
+	(beginning-of-line)
+	(while (and (looking-at eif-non-source-line)
+		    (not (= (point) 1)))
 	  (forward-line -1)
-	  (beginning-of-line)
-	  (while (and (looking-at eif-non-source-line) (not (= (point) 1)))
-	    (forward-line -1)
-	    (beginning-of-line))
-	  (if (eif-line-contains-close-paren)
-	      (backward-sexp))
-	  (end-of-line)
-	  (setq line-end (point))
-	  (beginning-of-line)
-	  (re-search-forward eif-white-space-regexp line-end t)
+	  (beginning-of-line))
+	(if (eif-line-contains-close-paren)
+	    (backward-sexp))
+	(eif-skip-leading-whitespace)
 
-	  (cond ((and (= (point) 1)
-		      originally-looking-at-comment
-		      (setq indent (eif-class-level-comment-indent-m))))
-		;; 'eif-is-keyword-regexp' case must precede
-		;; '(not eif-all-keywords-regexp)' case since "is" is not
-		;; part of 'eif-all-keywords-regexp'
-		((or (looking-at eif-is-keyword-regexp)
-		     (looking-at eif-multiline-routine-is-keyword-regexp)
-		     (looking-at eif-obsolete-keyword))
-		 (if originally-looking-at-comment
-		     ;; Then  the line we are trying to indent is a comment
-		     (setq indent (eif-feature-level-comment-indent-m))
-		   ;; Else  the line being indented is not a comment
-		   (setq indent (eif-feature-level-kw-indent-m))))
-		((looking-at eif-feature-indentation-keywords-regexp)
-		 (setq indent (eif-feature-level-indent-m)))
-		((looking-at eif-indentation-keywords-regexp)
-		 (if (looking-at eif-end-on-current-line)
-		     (setq indent (eif-current-line-indent))
-		   (setq indent
-			 (+ (eif-current-line-indent) eif-indent-increment))))
-		((looking-at eif-solitary-then-keyword)
-		 (setq indent (- (+ (eif-current-line-indent) eif-indent-increment)
-				 (eif-then-indent-m))))
-		((looking-at eif-then-keyword)
-		 (setq indent (eif-current-line-indent)))
-		((looking-at (concat eif-end-keyword eif-non-id-char-regexp))
-		 (if (= (setq indent (eif-current-line-indent))
-			(eif-feature-level-kw-indent-m))
-		     (setq indent (eif-feature-level-indent-m))
-		   (eif-matching-line)
-		   (if (string-match eif-check-keyword eif-matching-kw-for-end)
-		       (setq indent (- indent (eif-check-keyword-indent-m))))))
-		((looking-at eif-variable-or-const-regexp)
-		 ;;Either a variable declaration or a pre or post condition tag
-		 (if originally-looking-at-comment
-		     ;; Then  the line we are trying to indent is a comment
-		     (if (= (setq indent (eif-current-line-indent))
-			    (eif-feature-level-indent-m))
-			 ;; Then - a feature level comment
-			 (setq indent (eif-feature-level-comment-indent-m))
-		       ;; Else - some other kind of comment
-		       (setq indent (+ indent (eif-body-comment-indent-m))))
-		   ;; Else  the line being indented is not a comment
-		   (if (setq indent (eif-indent-assertion-continuation id-colon))
-		       indent
-		     ;; One of the ways of getting here is when we're
-		     ;; in a split line in an indexing clause.
-		     ;; Strings on their own need to be given some
-		     ;; extra indent.
-		     (if originally-looking-at-lone-string
-			 (if (looking-at "[ \t]*\"[^\"]*\"[ \t]*$")
-			     (setq indent (eif-current-line-indent))
-			   (setq indent (+ (eif-current-line-indent)
-					   eif-indent-increment)))
-		       (setq indent (eif-current-line-indent))))))
-		((setq indent (eif-manifest-array-start))
-		 indent)
-		((not (looking-at eif-all-keywords-regexp))
-		 (if originally-looking-at-comment
-		     ;; Then  the line we are trying to indent is a comment
-		     (cond ((eif-continuation-line)
-			    (setq indent
-				  (+ (- (eif-current-line-indent)
-					eif-indent-increment)
-				     (eif-body-comment-indent-m))))
-			   ;; preceding line is at eif-feature-level-indent -
-			   ;; assume that the preceding line is a parent
-			   ;; class in an inherit clause
-			   ((= (eif-current-line-indent)
-			       (eif-feature-level-indent-m))
-			    (setq indent
-				  (+ (eif-inherit-level-kw-indent-m)
-				     (eif-body-comment-indent-m))))
-			   (t
-			    (setq indent
-				  (+ (eif-current-line-indent)
-				     (eif-body-comment-indent-m)))))
-		   ;; Else line being indented is not a comment
-
-		   ;; The line the point is on is the one above the line being
-		   ;; indented
-		   (beginning-of-line)
-		   (if (or continuation (looking-at eif-operator-eol-regexp))
-		       ;; Then the line being indented is a continuation line
-		       (if  (eif-continuation-line)
-			   ;; The line preceding the line being indented is
-			   ;; also a continuation line.  Indent to the current
-			   ;; line indentation.
+	(cond ((and (= (point) 1)
+		    originally-looking-at-comment
+		    (setq indent (eif-class-level-comment-indent-m))))
+	      ;; 'eif-is-keyword-regexp' case must precede
+	      ;; '(not eif-all-keywords-regexp)' case since "is" is not
+	      ;; part of 'eif-all-keywords-regexp'
+	      ((or (looking-at eif-is-keyword-regexp)
+		   (looking-at eif-multiline-routine-is-keyword-regexp)
+		   (looking-at eif-obsolete-keyword))
+	       (if originally-looking-at-comment
+		   ;; Then  the line we are trying to indent is a comment
+		   (setq indent (eif-feature-level-comment-indent-m))
+		 ;; Else  the line being indented is not a comment
+		 (setq indent (eif-feature-level-kw-indent-m))))
+	      ;; Feature indentation keyword or class-level `create'.
+	      ((or (looking-at eif-feature-indentation-keywords-regexp)
+		   (and (looking-at eif-create-keyword-regexp)
+			(not (save-excursion
+			       (eif-find-beginning-of-feature)))))
+	       (setq indent (eif-feature-level-indent-m)))
+	      ((and (looking-at eif-indentation-keywords-regexp)
+		    (not (looking-at eif-once-non-indent-regexp)))
+	       (if (looking-at eif-end-on-current-line)
+		   (setq indent (eif-current-line-indent))
+		 (setq indent
+		       (+ (eif-current-line-indent) eif-indent-increment))))
+	      ((looking-at eif-solitary-then-keyword)
+	       (setq indent (- (+ (eif-current-line-indent) eif-indent-increment)
+			       (eif-then-indent-m))))
+	      ((looking-at eif-then-keyword)
+	       (setq indent (eif-current-line-indent)))
+	      ((looking-at (concat eif-end-keyword eif-non-id-char-regexp))
+	       (if (= (setq indent (eif-current-line-indent))
+		      (eif-feature-level-kw-indent-m))
+		   (setq indent (eif-feature-level-indent-m))
+		 (eif-matching-line)
+		 (if (string-match eif-check-keyword eif-matching-kw-for-end)
+		     (setq indent (- indent (eif-check-keyword-indent-m))))))
+	      ((looking-at eif-variable-or-const-regexp)
+	       ;;Either a variable declaration or a pre or post condition tag
+	       (if originally-looking-at-comment
+		   ;; Then  the line we are trying to indent is a comment
+		   (if (= (setq indent (eif-current-line-indent))
+			  (eif-feature-level-indent-m))
+		       ;; Then - a feature level comment
+		       (setq indent (eif-feature-level-comment-indent-m))
+		     ;; Else - some other kind of comment
+		     (setq indent (+ indent (eif-body-comment-indent-m))))
+		 ;; Else  the line being indented is not a comment
+		 (if (setq indent (eif-indent-assertion-continuation id-colon))
+		     indent
+		   ;; One of the ways of getting here is when we're
+		   ;; in a split line in an indexing clause.
+		   ;; Strings on their own need to be given some
+		   ;; extra indent.
+		   (if originally-looking-at-lone-string
+		       (if (looking-at "[ \t]*\"[^\"]*\"[ \t]*$")
 			   (setq indent (eif-current-line-indent))
-			 ;; Else The line preceding the line being indented is
-			 ;; not a continuation line.  Indent an extra
-			 ;; eif-continuation-indent
 			 (setq indent (+ (eif-current-line-indent)
-					 (eif-continuation-indent-m))))
-		     ;; Else the line being indented is not a continuation line.
-		     (if (eif-continuation-line)
-			 (if id-colon
-			     ;; Then the line preceding the one being indented
-			     ;; is an assertion continuation.  Indent the current
-			     ;; line to the same level as the preceding assertion
-			     ;; tag.
-			     (setq indent (eif-indent-assertion-tag))
-			   ;; Then the line preceding the one being indented is
-			   ;; a continuation line.  Un-indent by an
-			   ;; eif-continuation-indent.
-			   (setq indent (- (eif-current-line-indent)
-					   eif-indent-increment)))
-		       ;; Else the line preceding the line being indented is
-		       ;; also not a continuation line.
-
-		       (if (and (looking-at "[ \t]*\"[^\"]*\"[ \t]*$")
-				(not originally-looking-at-lone-string))
-			   (setq indent (- (eif-current-line-indent)
-					   eif-indent-increment))
-			 ;; Else use the current indent.
-			 (setq indent (eif-current-line-indent)))))))))))
+					 eif-indent-increment)))
+		     (setq indent (eif-current-line-indent))))))
+	      ((setq indent (eif-manifest-array-start))
+	       indent)
+	      ;; OK, this is a sanity check, but it kills a minor
+	      ;; instance of `create', so we need to code the corner
+	      ;; case.  As for minor instance of `once'.
+	      ((or (not (looking-at eif-all-keywords-regexp))
+		   (looking-at eif-create-keyword-regexp)
+		   (looking-at eif-once-non-indent-regexp))
+	       (if originally-looking-at-comment
+		   ;; Then  the line we are trying to indent is a comment
+		   (cond ((eif-continuation-line)
+			  (setq indent
+				(+ (- (eif-current-line-indent)
+				      eif-indent-increment)
+				   (eif-body-comment-indent-m))))
+			 ;; preceding line is at eif-feature-level-indent -
+			 ;; assume that the preceding line is a parent
+			 ;; class in an inherit clause
+			 ((= (eif-current-line-indent)
+			     (eif-feature-level-indent-m))
+			  (setq indent
+				(+ (eif-inherit-level-kw-indent-m)
+				   (eif-body-comment-indent-m))))
+			 (t
+			  (setq indent
+				(+ (eif-current-line-indent)
+				   (eif-body-comment-indent-m)))))
+		 ;; Else line being indented is not a comment
+		 
+		 ;; The line the point is on is the one above the line being
+		 ;; indented
+		 (beginning-of-line)
+		 (if (or continuation (looking-at eif-operator-eol-regexp))
+		     ;; Then the line being indented is a continuation line
+		     (if  (eif-continuation-line)
+			 ;; The line preceding the line being indented is
+			 ;; also a continuation line.  Indent to the current
+			 ;; line indentation.
+			 (setq indent (eif-current-line-indent))
+		       ;; Else The line preceding the line being indented is
+		       ;; not a continuation line.  Indent an extra
+		       ;; eif-continuation-indent
+		       (setq indent (+ (eif-current-line-indent)
+				       (eif-continuation-indent-m))))
+		   ;; Else the line being indented is not a continuation line.
+		   (if (eif-continuation-line)
+		       (if id-colon
+			   ;; Then the line preceding the one being indented
+			   ;; is an assertion continuation.  Indent the current
+			   ;; line to the same level as the preceding assertion
+			   ;; tag.
+			   (setq indent (eif-indent-assertion-tag))
+			 ;; Then the line preceding the one being indented is
+			 ;; a continuation line.  Un-indent by an
+			 ;; eif-continuation-indent.
+			 (setq indent (- (eif-current-line-indent)
+					 eif-indent-increment)))
+		     ;; Else the line preceding the line being indented is
+		     ;; also not a continuation line.
+		     
+		     (if (and (looking-at "[ \t]*\"[^\"]*\"[ \t]*$")
+			      (not originally-looking-at-lone-string))
+			 (setq indent (- (eif-current-line-indent)
+					 eif-indent-increment))
+		       ;; Else use the current indent.
+		       (setq indent (eif-current-line-indent))))))))))
     indent))
 
 (defun eif-continuation-line ()
@@ -1039,8 +1449,9 @@ argument ID-COLON is t if the line we are indenting begins with
 \"<id> :\", and nil otherwise."
   (let ((limit (point)))
     (if (save-excursion
-	  (if (re-search-backward (concat eif-feature-level-keywords "\\|"
-					  eif-end-keyword-regexp) nil t)
+	  (if (re-search-backward
+	       (concat eif-feature-level-keywords-regexp "\\|"
+		       eif-end-keyword-regexp) nil t)
 	      (if (looking-at "ensure\\|require")
 		  (setq limit (point)))))
 	(save-excursion
@@ -1060,44 +1471,14 @@ multi-line assertion, and we return the required indentation."
       ;; This option should not occur
       (error "Could not find assertion tag"))))
 
-(defun eif-matching-indent (matching-keyword-regexp)
-  "Search backwards for a keyword in MATCHING-KEYWORD-REGEXP.
-Return the indentation of the keyword found.  If an `end' keyword
-occurs prior to finding one of the keywords in MATCHING-KEYWORD-REGEXP
-and it terminates a check clause, return the indentation of the `end'
-minus the value of `eif-check-keyword-indent'."
-  (let ((search-regexp (concat "[^a-z0-9A-Z_]"
-			       eif-end-keyword
-			       "[^a-z0-9A-Z_]\\|[^a-z0-9A-Z_]"
-			       matching-keyword-regexp))
-	(indent 0)
-	(continue t))
-    (save-excursion
-      (while (and (re-search-backward search-regexp 1 t)
-		  (eif-in-comment-or-quoted-string-p)))
-      (if (looking-at search-regexp)
-	  ;; Then
-	  (if (and (looking-at eif-end-keyword-regexp)
-		   (eif-matching-line)
-		   (string-match eif-check-keyword eif-matching-kw-for-end))
-	      ;; The keyword "end" was found that terminated a "check" clause
-	      (setq indent (- (eif-current-line-indent)
-			      (eif-check-keyword-indent-m)))
-	    ;; Else a keyword in "matching-keyword-regexp" or a normal
-	    ;; "end"was found
-	    (setq indent (eif-current-line-indent)))
-	;; Else
-	(message "No matching indent keyword was found"))
-      indent)))
-
 (defun eif-matching-kw (matching-keyword-regexp)
-  "Search backwards for a keyword in MATCHING-KEYWORD-REGEXP.
-Return the keyword found.  Also set the value of variable
-`eif-matching-indent' to the indentation of the keyword found.  If an
-`end' keyword occurs prior to finding one of the keywords in
-MATCHING-KEYWORD-REGEXP and it terminates a check clause, set the
-value of variable `eif-matching-indent' to the indentation of the
-`end' minus the value of `eif-check-keyword-indent'."
+  "Search backwards and return a keyword in MATCHING-KEYWORD-REGEXP.
+Also set the value of variable `eif-matching-indent' to the
+indentation of the keyword found.  If an `end' keyword occurs prior to
+finding one of the keywords in MATCHING-KEYWORD-REGEXP and it
+terminates a check clause, set the value of variable
+`eif-matching-indent' to the indentation of the `end' minus the value
+of `eif-check-keyword-indent'."
   (let ((search-regexp (concat "[^a-z0-9A-Z_.]"
 			       eif-end-keyword
 			       "[^a-z0-9A-Z_.]\\|[^a-z0-9A-Z_.]"
@@ -1105,8 +1486,11 @@ value of variable `eif-matching-indent' to the indentation of the
 	(keyword ""))
     (save-excursion
       ;; Search backward for a matching keyword.
-      (while (and (re-search-backward search-regexp 1 t)
-		  (eif-in-comment-or-quoted-string-p)))
+      ;; Note that eif-once-non-indent-regexp indicates we haven't
+      ;; found a match so should keep going.
+      (while (and (eif-re-search-backward search-regexp 1 t)
+		  (looking-at eif-once-non-indent-regexp)
+		  (not (= (point) 1))))
       (if (looking-at search-regexp)
 	  ;; Then - a keyword was found
 	  (progn
@@ -1116,8 +1500,8 @@ value of variable `eif-matching-indent' to the indentation of the
 		     (eif-matching-line)
 		     (string-match eif-check-keyword eif-matching-kw-for-end))
 		;; Then
-		(setq eif-matching-indent
-		      (- (eif-current-line-indent) (eif-check-keyword-indent-m)))
+		(setq eif-matching-indent (- (eif-current-line-indent)
+					     (eif-check-keyword-indent-m)))
 	      ;; Else
 	      (setq eif-matching-indent (eif-current-line-indent))))
 	;; Else no keyword was found.  I think this is an error
@@ -1155,11 +1539,20 @@ placed at the beginning of the line."
 ;;    (looking-at "^\\([ \t]*%\\|[^\"\n]*\"\\)[^\"\n]*\\(%$\\|\"\\)")))
 
 (defconst eif-opening-regexp
-  "\\<\\(external\\|check\\|deferred\\|do\\|once\\|from\\|if\\|inspect\\)\\>"
+  "\\<\\(external\\|check\\|deferred\\|do\\|once\\|from\\|if\\|inspect\\|debug\\)\\>"
   "Keywords that open eiffel nesting constructs.")
+;; OK, this is a horrible hack in all of this to handle "once" as a
+;; special case because it has been overloaded.  The search for the
+;; opening keyword on the current line is quite reasonably limited to
+;; the current line.  Therefore, the standard hacky way that we avoid
+;; matching once strings, by making sure they're followed by
+;; whitespace and a non-double-quote, doesn't work here.
+(defconst eif-non-opening-regexp
+  "\\<once\\s-+\""
+  "Pattern matching exclusions from `eif-opening-regexp'.")
 (defconst eif-closing-regexp "\\<end\\>"
   "Keywords that close eiffel nesting constructs.")
-(defconst eif-do-regexp "\\<do\\|once\\|external\\>"
+(defconst eif-do-regexp "\\<\\(do\\|once\\|external\\)\\>"
   "Keyword that opens eiffel routine body.")
 (defconst eif-opening-or-closing-regexp
   (concat "\\(" eif-opening-regexp "\\|" eif-closing-regexp "\\)")
@@ -1210,13 +1603,15 @@ of the syntactic construct containing the point."
 		((and (re-search-forward eif-opening-regexp search-end t)
 		      (eif-not-in-comment-or-quoted-string-p))
 		 (setq match-start (match-beginning 0))
+		 (setq match-end (match-end 0))
 		 (goto-char match-start)
-		 (if (eif-not-in-comment-or-quoted-string-p)
+		 (if (and (not (looking-at eif-non-opening-regexp))
+			  (eif-not-in-comment-or-quoted-string-p))
 		     (setq nesting-level 1))
 		 (setq opening-keyword
-		       (cons (buffer-substring match-start (match-end 0))
+		       (cons (buffer-substring match-start match-end)
 			     opening-keyword))
-		 (goto-char (match-end 0)))
+		 (goto-char match-end))
 		((and (progn (beginning-of-line) t)
 		      (re-search-forward eif-closing-regexp search-end t)
 		      (eif-not-in-comment-or-quoted-string-p))
@@ -1231,16 +1626,20 @@ of the syntactic construct containing the point."
 			    (goto-char (setq match-start (match-beginning 0)))
 			    (setq match-end   (match-end 0))
 			    (setq success t)
-			    (eif-in-comment-or-quoted-string-p))
+			    (or (looking-at eif-non-opening-regexp)
+				(eif-in-comment-or-quoted-string-p)))
 		  (goto-char match-end)
 		  (setq success nil))
 	      ;; Else search backward for the next keyword not in a comment
 	      (while (and (re-search-backward eif-opening-or-closing-regexp nil 1)
 			  (goto-char (setq match-start (match-beginning 0)))
 			  (setq success t)
-			  (eif-in-comment-or-quoted-string-p))
+			  (or (looking-at eif-non-opening-regexp)
+			      (eif-in-comment-or-quoted-string-p)))
 		(setq success nil)))
-	    (cond ((and (looking-at eif-opening-regexp) success)
+	    (cond ((and (not (looking-at eif-non-opening-regexp))
+			(looking-at eif-opening-regexp)
+			success)
 		   ;; Found an opening keyword
 		   (if (> nesting-level 0)
 		       ;; Then
@@ -1367,7 +1766,7 @@ For example, if the point is on the terminating `end' of an `if'
 statement, then the point is place on the opening `if'.  This also
 does matching of parens ala \\[backward-sexp]'."
   (interactive)
-  (cond ((save-excursion (backward-char 1) (looking-at "[])]"))
+  (cond ((eif-peeking-backwards-at "[])]")
 	 (backward-sexp))
 	(t
 	 (goto-char (eif-matching-line nil 'backward)))))
@@ -1377,28 +1776,6 @@ does matching of parens ala \\[backward-sexp]'."
   (interactive "NNumber of spaces for eif-indent-increment: ")
   (make-local-variable 'eif-indent-increment)
   (setq eif-indent-increment amount))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;                      Utility Functions.                      ;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(defun eif-feature-quote ()
-  "Put a `' around the current feature name."
-  (interactive)
-  (save-excursion
-    ;; Only try to go back to the beginning of the feature if we're
-    ;; not already there.
-    (if (/= (point)
-	    (save-excursion
-	      (forward-sexp)
-	      (backward-sexp)
-	      (point)))
-	(backward-sexp))
-    (insert "`")
-    (forward-sexp)
-    (insert "'"))
-  (if (looking-at "'")
-      (forward-char 1)))
 
 ;; ----------------------------------------------------------------------
 ;; This next portion of the file is derived from "eiffel.el"
@@ -1489,11 +1866,15 @@ does matching of parens ala \\[backward-sexp]'."
 		["Compiler Options..."   eif-set-compile-options t]
 		["Next Compile Error..." next-error  t]
 		["Run..."                eif-run     t]
+		["Debug..."              eif-debug   t]
 		["Short..."              eif-short   t]
 		["----------" nil nil]))
 	   (list
 	    ["Indent Construct"    eif-indent-construct t]
 	    ["----------" nil nil]
+	    (list "Imenu"
+		  ["By position"   eif-imenu-add-menubar-by-position t]
+		  ["By name"       eif-imenu-add-menubar-by-name     t])
 	    (list "Comments"
 		  ["Feature Quote" eif-feature-quote  (eif-in-comment-p)]
 		  ["Fill         " eif-fill-paragraph (eif-near-comment-p)])
@@ -1512,7 +1893,7 @@ Key definitions:
 \\{eiffel-mode-map}
 
 If variable `eif-use-gnu-eiffel' is non-nil (default t) then support
-for using GNU SmallEiffel is enabled.  Run \\[eif-customize] to see
+for using GNU SmartEiffel is enabled.  Run \\[eif-customize] to see
 compilation and indentation variables that can be customized."
 
   (interactive)
@@ -1527,6 +1908,7 @@ compilation and indentation variables that can be customized."
 	(define-key eiffel-mode-map "\C-c\C-c" 'eif-compile)
 	(define-key eiffel-mode-map "\C-c\C-o" 'eif-set-compile-options)
 	(define-key eiffel-mode-map "\C-c\C-r" 'eif-run)
+	(define-key eiffel-mode-map "\C-c\C-d" 'eif-debug)
 	(define-key eiffel-mode-map "\C-c\C-s" 'eif-short))
     (define-key eiffel-mode-map "\C-c\C-c" nil)
     (define-key eiffel-mode-map "\C-c\C-o" nil)
@@ -1550,6 +1932,7 @@ compilation and indentation variables that can be customized."
   (make-local-variable 'comment-column)
   (make-local-variable 'comment-start-skip)
   (make-local-variable 'font-lock-defaults)
+  (make-local-variable 'imenu-create-index-function)
   ;; Now set their values.
   (setq paragraph-start              (concat "^$\\|" page-delimiter)
 	paragraph-separate           paragraph-start
@@ -1561,7 +1944,7 @@ compilation and indentation variables that can be customized."
 	comment-start                "-- "
 	comment-end                  ""
 	comment-column               32
-	comment-start-skip           "--+|?[ \t]*"
+	comment-start-skip           eiffel-comment-start-skip
 	font-lock-defaults           eiffel-font-lock-defaults)
 
   (if eif-set-tab-width-flag
@@ -1570,52 +1953,70 @@ compilation and indentation variables that can be customized."
   (setq auto-fill-function 'eif-auto-fill)
   (run-hooks 'eiffel-mode-hook))
 
-(defun eif-not-in-comment-or-quoted-string-p ()
-  "Return t if point is not in a comment or quoted string."
-  (not (eif-in-comment-or-quoted-string-p)))
-  
-(defun eif-in-comment-or-quoted-string-p ()
-  "Return t if point is in a comment or quoted string."
-  (or (eif-in-comment-p)
-      (eif-in-quoted-string-p)))
-  
-(defsubst eif-in-comment-p ()
-  "Return t if point is in a comment."
+(defconst eif-prefeature-regexp
+  (concat "\\(" eif-non-source-line "\\|\n\\)*" "[ \t]*")
+  "Regexp matching whitespace-equivalent content, possibly before a feature.")
+
+(defun eif-find-end-of-feature ()
+  "Find the `end' of the current feature definition.
+Assumes point is at the beginning of the feature, not in a comment or
+quoted string."
+  (let (ret)
+    (modify-syntax-entry ?_  "w  ")
+    (cond ((looking-at (concat eif-prefeature-regexp
+			       eif-routine-begin-regexp))
+	   ;; At the start of a routine, find matching end.
+	   (and (eif-re-search-forward eif-do-regexp nil t)
+		(goto-char (match-beginning 0))
+		(goto-char (setq ret (eif-matching-line)))))
+	  ((looking-at (concat eif-prefeature-regexp
+			       eif-probably-feature-regexp))
+	   ;; Not a routine, find end of attribute or constant.
+	   (goto-char (setq ret (match-end 0)))))
+    (modify-syntax-entry ?_  "_  ")
+    ret))    
+
+;; OK, this works well, but it doesn't work for the following cases:
+;; * In the middle of the feature regexp that need to be matched.
+;;   However, it doesn't need to since eif-beginning-of-feature adds
+;;   some smarts around it...
+(defun eif-find-beginning-of-feature ()
+  "Find the beginning of the most recent feature definition.
+This will always move backward, if possible."
   (interactive)
-  (save-excursion
-    (nth 4 (parse-partial-sexp
- 	    (save-excursion (beginning-of-line) (point))
- 	    (point)))))
-
-(defun eif-near-comment-p ()
-  "Return t if point is close enough to a comment for filling purposes."
-  (or (eif-in-comment-p)
-      (and (or (looking-at comment-start-skip)
-	       (and (looking-at "-")
-		    (not (bobp))
-		    (save-excursion
-		      (backward-char 1)
-		      (looking-at "-"))))
-	   (not (eif-in-quoted-string-p)))
-      (looking-at (concat "[ \t]*" comment-start-skip))))
-
-;; ENHANCEME: Currently eif-beginning-of-feature only works for
-;;            routines (`is' is crucial).  It should be made more
-;;            general.
-;;
-
-(defun eif-bof-p ()
-  "Return non-nil if point is at the beginning of a feature.
-This is defined as at the beginning of the feature name or anywhere in
-whitespace before the start of a feature (including at the end of the
-previous feature)."
-  (save-excursion
-    (save-match-data
-      (if (eif-in-comment-p)
-	  (end-of-line))
-      (looking-at (concat "\\(" eif-non-source-line "\\|\n\\)*"
-			  "[ \t]*\\b"
-			  eif-is-keyword-regexp)))))
+  
+  (let ((start (point))
+	candidate routine-begin)
+    (if (eif-re-search-backward (concat "\\s-" eif-probably-feature-regexp)
+				nil t)
+	(progn
+	  (forward-char) ;; Skip the whitespace character matched above.
+	  (if (not (or (looking-at (concat
+				    "\\(" eif-attribute-regexp
+				    "\\|" eif-constant-regexp "\\)"))))
+	      ;; This is a routine.  Done.
+	      (point)
+	    ;; Variable/attribute or constant declaration matched.
+	    ;; Now we go back and find the previous routine start, the
+	    ;; following end, and see if the current position
+	    ;; (candidate) is between.  If it is, then candidate is a
+	    ;; variable or constant declaration within a routine, so
+	    ;; we're interested in the routine start.  If it isn't,
+	    ;; then it must be a class attribute or constant, so it is
+	    ;; what we're looking for.
+	    (setq candidate (point))
+	    (goto-char start)
+	    (if (eif-re-search-backward
+		 (concat "\\s-" eif-routine-begin-regexp) nil t)
+		(progn 
+		  (forward-char)
+		  (setq routine-begin (point))
+		  (eif-find-end-of-feature)
+		  (if (and (< routine-begin candidate)
+			   (< candidate (point)))
+		      (goto-char routine-begin)
+		    (goto-char candidate)))
+	      (goto-char candidate)))))))
 
 (defun eif-beginning-of-feature (&optional arg)
   "Move backward to next feature beginning.
@@ -1627,108 +2028,88 @@ Returns t unless search stops due to beginning or end of buffer."
   (or arg
       (setq arg 1))
 
-  ;; If not in the whitespace at the beginning of a feature, or going
-  ;; forward, then do this from after the "is".
-  (if (and (or (not (eif-bof-p))
-	       (and arg (< arg 0) (not (eobp))))
-	   (looking-at eif-is-keyword-regexp))
-      (re-search-forward eif-is-keyword-regexp))
+  (let ((start (point))
+	(success t))
+    (cond ((> arg 0)
+	   ;; Going backward.
 
-  (let ((success t))
-    ;; Change arg towards zero as we search, failing if we hit edge of buffer.
-    (while (or (and (> arg 0) (or (not (bobp)) (setq success nil)))
-	       (and (< arg 0) (or (not (eobp)) (setq success nil))))
-      (if (re-search-backward eif-is-keyword-regexp nil 'move
-			      (if (> arg 0) 1 -1))
-	  ;; If we found one, count it and keep moving.
-	  (if (eif-not-in-comment-or-quoted-string-p)
-	      (progn
-		(if (> arg 0)
-		    (setq arg (1- arg))
-		  (setq arg (1+ arg)))))))
-    (if success
-	(progn
-	  (backward-sexp 1)
-	  (if (looking-at "(")
-	      (backward-word 1))
-	  (beginning-of-line)))
+	   ;; We have to move forward to make sure we find any feature
+	   ;; that we might be in the middle of the beginning of.  How
+	   ;; far?  How about this far?
+	   (eif-re-search-forward eif-probably-feature-regexp nil 'move)
+
+	   ;; Change arg towards zero as we search, failing if we hit
+	   ;; edge of buffer.
+	   (while (and (> arg 0)
+		       (or (eif-find-beginning-of-feature)
+			   (setq success nil)))
+	     ;; If we've gone backwards from the original start, then
+	     ;; this counts.
+	     (if (< (point) start)
+		 (setq arg (1- arg))))
+	   (or success
+	       (goto-char (point-min))))
+
+	  ((< arg 0)
+	   ;; Going forward.
+	   
+	   ;; Similar to above, let's go back to the beginning of the
+	   ;; current feature, and then skip over features and find
+	   ;; the beginning of the next repeatedly.
+	   (eif-find-beginning-of-feature)
+	   
+	   (while (and (< arg 0)
+		       (or (not (eobp)) (setq success nil)))
+	     (eif-find-end-of-feature)
+	     (if (eif-re-search-forward eif-probably-feature-regexp
+					nil 'move)
+		 (progn
+		   (goto-char (match-beginning 0))
+		   (if (> (point) start)
+		       (setq arg (1+ arg))))))))
     success))
-
-(defun eif-find-end-of-feature ()
-  "Find the `end' of the current feature definition.
-Assumes point is at the beginning of the feature."
-  (let ((current-level 0)
-        (previous-level 0))
-    (while (not (or (eobp) (and (= current-level 0) (= previous-level 1))))
-      (re-search-forward (concat eif-end-matching-keywords
-                                 "\\|" eif-end-keyword)
-                         nil 'move)
-      (backward-char 1)         ; matching eif-end-matching-keywords
-                                ; takes us one char to far
-      (if (eif-not-in-comment-or-quoted-string-p)
-          ;; After a level changing keyword.
-          (save-excursion
-            (backward-word 1)
-            (setq previous-level current-level)
-            (cond ((looking-at eif-end-matching-keywords)
-                   (setq current-level (1+ current-level)))
-                  ((looking-at eif-end-keyword)
-                   (setq current-level (1- current-level)))))))))
-
-;; Could we use eif-matching line here instead?  That is, we would
-;; search for the initial "do" and then match it.  No, because there
-;; isn't always a "do" and it gets too hard!
-(defun eif-end-of-feature-forward-only (arg)
-  "Move forward to end of feature, ARG times."
-
-  ;; We try going backwards to the beginning of the current feature on
-  ;; the first iteration.  If we get nowhere, the first iteration will
-  ;; not count and we will go forward instead.
-  (let ((on-first-iteration t))
-    (while (and (> arg 0) (not (eobp)))
-
-      (let ((pos (point)))
-	;; If the previous search put us at the beginning of a feature
-	;; (as well as the end), then stay here.
-	(if (not (eif-bof-p))
-	    (if (and on-first-iteration
-		     (save-excursion (eif-beginning-of-feature)))
-		;; First iteration and there is a beginning of feature
-		;; back there somewhere, so go to it and see how we
-		;; go.
-		(eif-beginning-of-feature)
-	      ;; Subsequent iteration or no feature, go forward
-	      ;; instead.
-	      (eif-beginning-of-feature -1)))
-	(setq on-first-iteration nil)
-
-        (eif-find-end-of-feature)
-
-	;; If the end of the feature we are at involved moving
-	;; forward, then we are rocking, so this iteration counts.
-	(if (> (point) pos)
-	    (progn
-	      (end-of-line)
-	      (setq arg (1- arg)))))))
-
-  (forward-line))
-
+	   
 (defun eif-end-of-feature (&optional arg)
   "Move forward to end of feature.
-
 With argument, do it that many times.  Negative argument means move
 back ARG preceding ends of features."
   (interactive "p")
 
   ;; Default is to find the first feature's end.
+  ;; Huh?  Even if they specify 0?  - martin@meltin.net
+  ;; Hmmm, it is what end-of-defun does...
   (if (or (null arg)
 	  (= arg 0))
       (setq arg 1))
 
-  (if (>= arg 0)
-      (eif-end-of-feature-forward-only arg)
-    (if (eif-beginning-of-feature (1+ (- arg)))
-	(eif-end-of-feature-forward-only 1))))
+  ;; This is a bad way of trying to get into position.  Happily, it
+  ;; seems to work.  Hmmm, not sure if the comment skip is needed.
+  (if (eif-in-comment-p)
+      (end-of-line))
+  (cond ((let ((curr (point)))
+	   (save-excursion
+	     (and (eif-beginning-of-feature)
+		  (eif-find-end-of-feature)
+		  (forward-line)
+		  (or (< curr (point))
+		      (and (< arg 0)
+			   (= curr (point)))))))
+	 ;; Within a feature.  Go to its beginning.
+	 (eif-beginning-of-feature))
+	((eif-peeking-backwards-at (concat "\\s-"
+					   eif-probably-feature-regexp))
+	 ;; Sitting at beginning of feature.  Don't move!
+	 t)
+	(t
+	 ;; Not within a feature or at beginning, go to beginning of
+	 ;; next feature.
+	 (eif-beginning-of-feature -1)))
+
+  ;; This part is correct.
+  (if (eif-beginning-of-feature (+ (if (< arg 0) 0 1) (- arg)))
+      (progn
+	(eif-find-end-of-feature)
+	(forward-line))))
 
 (defun eif-narrow-to-feature ()
   "Make text outside current feature invisible.
@@ -1744,13 +2125,8 @@ The feature visible is the one that contains point or follows point."
 (defun eif-current-line-indent ()
   "Return the indentation of the line containing the point."
   (save-excursion
-    (let ((line-end 0)
-	  (indent   0))
-      (end-of-line)
-      (setq line-end (point))
-      (beginning-of-line)
-      (re-search-forward eif-white-space-regexp line-end t)
-      (setq indent (current-column)))))
+    (eif-skip-leading-whitespace)
+    (current-column)))
 
 (defun eif-in-quoted-string-p (&optional non-strict-p)
   "Return t if point is in a quoted string.
@@ -1914,29 +2290,28 @@ Return t if successful, nil if not."
 	  (setq paren-count (1- paren-count)))))
     paren-count))
 
+(defun eif-manifest-array-common ()
+  "Common code for handling indentation/presence of Eiffel manifest arrays."
+  (let ((paren-count 0))
+    (if (= eif-last-feature-level-indent (eif-feature-level-indent-m))
+	nil
+      (setq eif-last-feature-level-indent (eif-feature-level-indent-m))
+      (setq eif-feature-level-indent-regexp
+	    (concat "^" (make-string eif-last-feature-level-indent ? )
+		    "[^ \t\n]")))
+    (while (and (<= paren-count 0) (re-search-backward "<<\\|>>" nil t))
+      (if (not (eif-peeking-backwards-at "|\\|@"))
+	  (if (looking-at "<<")
+	      (setq paren-count (1+ paren-count))
+	    (setq paren-count (1- paren-count)))))
+    paren-count))
+
 (defun eif-manifest-array-indent ()
   "Determine if we are inside of a manifest array."
   (interactive)
-  (let ((paren-count 0)
-	(limit 0)
-	indent)
+  (let (indent)
     (save-excursion
-      (if (= eif-last-feature-level-indent (eif-feature-level-indent-m))
-	  (setq limit
-		(re-search-backward eif-feature-level-indent-regexp nil t))
-	(setq eif-last-feature-level-indent (eif-feature-level-indent-m))
-	(setq eif-feature-level-indent-regexp
-	      (concat "^" (make-string eif-last-feature-level-indent ? )
-		      "[^ \t\n]"))
-	(setq limit
-	      (or (re-search-backward eif-feature-level-indent-regexp nil t)
-		  0))))
-    (save-excursion
-      (while (and (<= paren-count 0) (re-search-backward "<<\\|>>" nil t))
-	(if (looking-at "<<")
-	    (setq paren-count (1+ paren-count))
-	  (setq paren-count (1- paren-count))))
-      (if (> paren-count 0)
+      (if (> (eif-manifest-array-common) 0)
 	  (let ((eol (save-excursion (end-of-line) (point))))
 	    (setq indent
 		  (or (and (re-search-forward "[^< \t]" eol t)
@@ -1947,26 +2322,9 @@ Return t if successful, nil if not."
 (defun eif-manifest-array-start ()
   "Determine the indentation of the statement containing a manifest array."
   (interactive)
-  (let ((paren-count 0)
-	(limit 0)
-	indent)
+  (let (indent)
     (save-excursion
-      (if (= eif-last-feature-level-indent (eif-feature-level-indent-m))
-	  (setq limit
-		(re-search-backward eif-feature-level-indent-regexp nil t))
-	(setq eif-last-feature-level-indent (eif-feature-level-indent-m))
-	(setq eif-feature-level-indent-regexp
-	      (concat "^" (make-string eif-last-feature-level-indent ? )
-		      "[^ \t\n]"))
-	(setq limit
-	      (or (re-search-backward eif-feature-level-indent-regexp nil t)
-		  0))))
-    (save-excursion
-      (while (and (<= paren-count 0) (re-search-backward "<<\\|>>" nil t))
-	(if (looking-at "<<")
-	    (setq paren-count (1+ paren-count))
-	  (setq paren-count (1- paren-count))))
-      (if (> paren-count 0)
+      (if (> (eif-manifest-array-common) 0)
 	  (let ((limit (progn (end-of-line) (point))))
 	    (beginning-of-line)
 	    (if (re-search-forward "^[ \t]*<<" limit t)
@@ -2062,6 +2420,59 @@ point."
 	  (skip-chars-forward " \t")
 	  (setq eif-ind-val (current-column)))))
     (if (> eif-paren-depth 0) eif-ind-val -1)))
+
+;; ----------------------------------------------------------------------
+;; imenu support, great for browsing foreign code.
+;; Originally contributed by Berend de Boer <berend@pobox.com>.
+;; ----------------------------------------------------------------------
+
+(defun eif-imenu-add-menubar-by-position ()
+  "Add menu of features of a class, sorted in order of occurence."
+  (interactive)
+  (setq imenu-create-index-function  'eif-imenu-create-index-by-position)
+  (imenu-add-to-menubar "Eiffel features")
+  )
+
+(defun eif-imenu-add-menubar-by-name ()
+  "Add menu of features of a class, sorted by name."
+  (interactive)
+  (setq imenu-create-index-function  'eif-imenu-create-index-by-name)
+  (imenu-add-to-menubar "Eiffel names"))
+
+(defun eif-imenu-create-index-by-position ()
+  "Generate index of features of a class, sorted in order of occurence."
+  (eif-imenu-create-index 0))
+
+(defun eif-imenu-create-index-by-name ()
+  "Generate index of features of a class, sorted by name."
+  (eif-imenu-create-index 1))
+
+(defun eif-imenu-create-index (sort-method)
+  "Generate an index of all features of a class.
+Sort by position if sort-method is 0. Sort by name if sort-method is 1."
+
+  (let (menu prevpos)
+
+    (imenu-progress-message prevpos 0 t)
+
+    ;; scan for features
+    (goto-char (point-max))
+    (while (eif-find-beginning-of-feature)
+      (imenu-progress-message prevpos nil t)
+      (if (looking-at "\\(\\sw\\|\\s_\\)+")
+	  (add-to-list 'menu (cons (buffer-substring-no-properties
+				    (match-beginning 0)
+				    (match-end 0)) (point)))))
+
+    (imenu-progress-message prevpos 100)
+
+    ;; sort in increasing buffer position order or by name
+    (if (= sort-method 0)
+        (sort menu (function (lambda (a b) (< (cdr a) (cdr b)))))
+      (sort menu (function (lambda (a b) (string< (car a) (car b))))))))
+
+;; XEmacs addition
+;;;###autoload(add-to-list 'auto-mode-alist '("\\.e\\'" . eiffel-mode))
 
 (provide 'eiffel)
 ;;; eiffel.el ends here
