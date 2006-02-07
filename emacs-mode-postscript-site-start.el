@@ -4,6 +4,6 @@
 ; November 2003
 ; ott@altlinux.ru
 
-(autoload 'postscript-mode "postscript.el" "" t)
+(autoload 'postscript-mode "postscript" "" t)
 (setq auto-mode-alist
       (cons '("\\.c?ps$".postscript-mode) auto-mode-alist))

@@ -2,13 +2,13 @@
 
 ;; Copyright (C) 1997 Stephen Eglen
 
-;; Author: Stephen Eglen <stephene@cogs.susx.ac.uk>
-;; Maintainer: Stephen Eglen <stephene@cogs.susx.ac.uk>
+;; Author: Stephen Eglen <stephen@anc.ed.ac.uk>
+;; Maintainer: Stephen Eglen <stephen@anc.ed.ac.uk>
 ;; Created: 03 Jul 1997
 ;; Version: 1.0
 ;; Keywords: outlines
-;; location: http://www.cogs.susx.ac.uk/users/stephene/emacs
-;; RCS: $Id: fm.el,v 1.3 1998/04/15 17:05:28 stephen Exp $
+;; location: http://www.anc.ed.ac.uk/~stephen
+;; RCS: $Id: fm.el,v 1.4 1999/04/08 09:16:37 stephen Exp $
  
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by

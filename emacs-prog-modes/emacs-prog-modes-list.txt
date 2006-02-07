@@ -1,5 +1,3 @@
-antlr-mode.el          --- perfect IDE for the development of ANTLR
-		       	   grammar files
 autoconf-mode.el       --- autoconf code editing commands for Emacs
 browse-cltl2.el        --- browse the hypertext-version of "Common
 		       	   Lisp the Language, 2nd. Edition"

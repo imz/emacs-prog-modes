@@ -1,14 +1,16 @@
 # -*- coding: utf-8; mode: rpm-spec -*-
-# $Id: emacs-prog-modes.spec,v 1.1 2005/10/13 14:10:29 eugene Exp $
+# $Id: emacs-prog-modes.spec,v 1.7 2006/02/04 18:02:41 eugene Exp $
+
+%define pkg_name prog-modes
 
 Version: 0.2
-Release: alt1
-Name: emacs-prog-modes
+Release: alt2
+Name: emacs-%pkg_name
 License: GPL
 Group: Editors
 Summary: Various programming packages for Emacs
 Summary(ru_RU.UTF-8): Дополнительные пакеты Emacs для работы с исходными текстами программ
-Requires: emacs-X11 deroff
+Requires: emacs-common deroff
 
 Packager: Emacs Maintainers Team <emacs@packages.altlinux.org>
 
@@ -24,8 +26,10 @@ Source9: emacs-mode-xbase-site-start.el
 
 BuildArch: noarch
 
+BuildPreReq: emacs-devel >= 0.0.1-alt2
+
 # Automatically added by buildreq on Thu Oct 13 2005
-BuildRequires: emacs-cedet emacs-common emacs-elib emacs-leim fontconfig freetype2 xorg-x11-locales
+BuildRequires: emacs-cedet emacs22-common emacs-elib emacs22-leim fontconfig freetype2 xorg-x11-locales
 
 %description
 Various programming packages for Emacs, including packages for editing
@@ -40,39 +44,37 @@ programms on C, Scheme, Fortran and others.
 %prep
 %setup -q -n %name
 
-%build
-for i in *.el ; do
-  emacs -batch --eval "(progn (add-to-list 'load-path \".\") (byte-compile-file \"$i\"))"
-done
-
 %install
 %__mkdir_p %buildroot%_emacslispdir/
 %__install -m 644 *.el* %buildroot%_emacslispdir/
-%__mkdir_p %buildroot%_datadir/emacs/etc/prog-modes/
-%__install -m 755 *.sh %buildroot%_datadir/emacs/etc/prog-modes/
-%__install -m 644 c_synopsis_list %buildroot%_datadir/emacs/etc/prog-modes/
-%__install -pD -m0644 %SOURCE1 %buildroot%_sysconfdir/emacs/site-start.d/php.el
-%__install -pD -m0644 %SOURCE2 %buildroot%_sysconfdir/emacs/site-start.d/c-mode-addons.el
-%__install -pD -m0644 %SOURCE3 %buildroot%_sysconfdir/emacs/site-start.d/eiffel.el
-%__install -pD -m0644 %SOURCE4 %buildroot%_sysconfdir/emacs/site-start.d/postscript.el
-%__install -pD -m0644 %SOURCE5 %buildroot%_sysconfdir/emacs/site-start.d/rexx.el
-%__install -pD -m0644 %SOURCE6 %buildroot%_sysconfdir/emacs/site-start.d/rpm.el
-%__install -pD -m0644 %SOURCE8 %buildroot%_sysconfdir/emacs/site-start.d/vrml.el
-%__install -pD -m0644 %SOURCE9 %buildroot%_sysconfdir/emacs/site-start.d/xbase.el
+%__mkdir_p %buildroot%_emacs_etc_dir/%pkg_name/
+%__install -m 755 *.sh %buildroot%_emacs_etc_dir/%pkg_name/
+%__install -m 644 c_synopsis_list %buildroot%_emacs_etc_dir/%pkg_name/
+%__install -pD -m0644 %SOURCE1 %buildroot%_emacs_sitestart_dir/php.el
+%__install -pD -m0644 %SOURCE2 %buildroot%_emacs_sitestart_dir/c-mode-addons.el
+%__install -pD -m0644 %SOURCE3 %buildroot%_emacs_sitestart_dir/eiffel.el
+%__install -pD -m0644 %SOURCE4 %buildroot%_emacs_sitestart_dir/postscript.el
+%__install -pD -m0644 %SOURCE5 %buildroot%_emacs_sitestart_dir/rexx.el
+%__install -pD -m0644 %SOURCE6 %buildroot%_emacs_sitestart_dir/rpm.el
+%__install -pD -m0644 %SOURCE8 %buildroot%_emacs_sitestart_dir/vrml.el
+%__install -pD -m0644 %SOURCE9 %buildroot%_emacs_sitestart_dir/xbase.el
+%byte_recompile_lispdir
 
 %files
 %doc emacs-prog-modes-list.txt
 %_emacslispdir/*.el*
-%_datadir/emacs/etc/prog-modes/
-%config(noreplace) %_sysconfdir/emacs/site-start.d/*
-
-
-# TODO
-# 1. Убрать после появления в сизиф emacs22 antlr-mode, cperl-mode, delphi
-#    flymake
+%_emacs_etc_dir/%pkg_name/
+%config(noreplace) %_emacs_sitestart_dir/*
 
 
 %changelog
+* Sat Feb 04 2006 Eugene Vlasov <eugvv@altlinux.ru> 0.2-alt2
+- Build with emacs-devel
+- Updated oct (and renamed from ect)
+- Updated c-includes, fm, ftnchek
+- Removed antlr-mode, cperl-mode, delphi, flymake
+- Fixed autoloads for rpm-spec-mode and postscript
+
 * Wed Oct 12 2005 Eugene Vlasov <eugvv@altlinux.ru> 0.2-alt1
 - Updated clearcase, constants, eiffel, flymake, javascript-mode,
   mode-compile, php-mode, quack, rpm-spec-mode, verilog-mode

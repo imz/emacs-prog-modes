@@ -1,14 +1,12 @@
-nu;;;---------------- CUT HERE -------------------------------
-
 ;;; oct.el --- some GNU octave functions in elisp.
-;; Time-stamp: <2003-04-03 12:30:48 deego>
+;; Time-stamp: <2005-04-27 09:59:02 deego>
 ;; Copyright (C) 2002 D. Goel
 ;; Emacs Lisp Archive entry
 ;; Filename: oct.el
 ;; Package: oct
 ;; Author: D. Goel <deego@glue.umd.edu>
 ;; Keywords: GNU Octave, matlab
-;; Version:
+;; Version: 0.0
 ;; Author's homepage: http://deego.gnufans.org/~deego
 ;; For latest version:
 
@@ -53,7 +51,7 @@ nu;;;---------------- CUT HERE -------------------------------
 ;; Stuff that gets posted to gnu.emacs.sources
 ;; as introduction
 (defconst oct-introduction
-  "I love the flexibility of GNU octave.  Oct.el implements
+  "I love the brevity/flexibility of GNU octave.  oct.el implements
 \(inefficiently) a *few* common octave functions.  Thus, any of the
 arguments to oct-+ can be a number, a vector, or a matrix. 
 
@@ -68,17 +66,20 @@ and a matrix is
 
 Each of oct.el's functions, oct-foo seeks to perform the exact same
 behavior as that of the corrresponding octave function foo.  Many are
-incomplete.
+incomplete---i.e. do not handle all possible cases of vectors/matrices
+for their arguments.  For documentation on any ocave function, just
+(apt-get) install octave2.1*, fire up octave, and type help foo; also
+look at octave info files. 
 
-There's no matrix-multiplication.  BTW, there was one matrix.el posted
-here a few years ago.
+There's no matrix-multiplication here (yet).  BTW, there was one
+matrix.el posted here a few years ago.
 
 If you are not into GNU Octave, probably the only useful function here
 might be some utilitiess like oct-corr (correlation) or oct-std
 \(standard deviation) --- viz. just apply them to lists. 
 
 Octav is huge, and growing. So, this library will never be complete,
-nor am I working anymore on it. Which is why i should go ahead and post
+nor am I working currently on it. Which is why i should go ahead and post
 whatever I have here. :)  " )
 
 ;;;###autoload
@@ -133,14 +134,14 @@ Note that we emulate octave and NOT the matlab-like 'octave
   (with-electric-help
    '(lambda () (insert oct--todo) nil) "*doc*"))
 
-(defconst oct--version "0.1dev")
-(defun oct--version (&optional arg)
+(defconst oct-version "0.0")
+(defun oct-version (&optional arg)
    "Display oct's version string.
 With prefix ARG, insert version string into current buffer at point."
   (interactive "P")
   (if arg
-      (insert (message "oct version %s" oct--version))
-    (message "oct version %s" oct--version)))
+      (insert (message "oct version %s" oct-version))
+    (message "oct version %s" oct-version)))
 
 ;;==========================================
 ;;; Requires:
@@ -255,7 +256,7 @@ a(1)=1, a(2)=1, size(a).  Does not check for sizes for lists."
        ((every 'listp eltt)
 	eltt)
        (t (error "How could i have reached here?")))))
-   (t (error "shouldn't have reached here. internal error"))))
+   (t (error "shouldn't have reached here. internal oct.el error"))))
 
 (defun oct--minimize (elt &optional vecp)
   "When rowp is true, will vectorize its stuff when possible."
@@ -516,10 +517,36 @@ no second argument yet. works only for vectors."
 
 
 
-(defun oct-colon (x y)
-  (if (<= x y)
-      (cons x (oct-colon (+ x 1) y))
-    nil))
+;; (defun oct-colon (x y)
+;;   (if (<= x y)
+;;       (cons x (oct-colon (+ x 1) y))
+;;     nil))
+
+
+(defun oct-colon (x y &optional z)
+  (when (consp x) (setq x (car x)))
+  (when (consp y) (setq y (car y)))
+  (when (consp z) (setq z (car z)))
+  (let* ((t2 (or z y))
+	 (skip (if z y 1))
+	 ;;(t1 x)
+	 (upp (not (minusp skip))))
+    (if upp
+	(loop for i from x to t2 by skip collect i)
+	(loop for i downfrom x to t2 by (- skip) collect i))))
+
+
+
+
+(defun oct-sign (x)
+  (if (listp x)
+    (mapcar 'oct-sign x)
+    (cond
+     ((> x 0) 1)
+     ((< x 0) -1)
+     (t 0))))
+
+  
 
 (provide 'oct)
 (run-hooks 'oct-after-load-hooks)
@@ -527,5 +554,3 @@ no second argument yet. works only for vectors."
 
 
 ;;; oct.el ends here
-
-

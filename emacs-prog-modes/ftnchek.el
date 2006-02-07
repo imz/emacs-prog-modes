@@ -1,7 +1,10 @@
 ;;; ftnchek.el --- ftnchek support for fortran mode.
 ;;
 ;; Author: Judah Milgram <milgram@cgpp.com>
-;; Version: 0.8 12/10/2002
+
+(defvar ftnchek-mode-version "0.9")
+(defvar ftnchek-mode-date "12/16/2002")
+
 ;; Keywords: fortran syntax semantic
 ;; Current version at: http://www.glue.umd.edu/~milgram/ftnchekel.html
 ;;
@@ -25,7 +28,7 @@
 ;; ==================================================================
 ;;
 ;;; FTNCHEK: Ftnchek is a fortran 77 syntax and  semantics checker
-;;  by Dr. Robert Moniot, <moniot@mary.fordham.edu>. Get it at
+;;  by Dr. Robert Moniot, <moniot@fordham.edu>. Get it at
 ;;  http://www.dsm.fordham.edu/~ftnchek/
 ;;
 ;;======================================================================
@@ -43,6 +46,9 @@
 ;;
 ;; To Do:
 ;;
+;; How do we handle case were comments precede first subroutine in
+;;         library file? ftnchek-mode thinks it's an unnamed main.
+;; Soup up regexps to tolerate embedded blanks.
 ;; Documentation! Info file, etc. (for  ftnchek too!)
 ;; Splash-blurb if ftnchek not found; message where to get
 ;; Make ftnchek-flags easier for user to customize (one for buffer,
@@ -51,12 +57,22 @@
 ;; ====================================================================
 ;;
 ;; Acknowledgements:
-;; Bruce Ravel, Richard Stallman for advice and suggestions.
+;; Bruce Ravel, Jinwei Shen, Richard Stallman, and many others for advice,
+;; suggestions and testing. 
 ;; Also: Michael D. Prange and Dave Love for fortran mode
-;; And especially: Robert Moniot for ftnchek!
+;; And especially: Bob Moniot for ftnchek!
 ;;                 
 ;; ====================================================================
 ;;  History:
+;;  v 0.9 12/16/02  update Bob Moniot contact info
+;;                update acks
+;;                fix message bug in ftnchek-check-subprogram
+;;                clean up some comments
+;;                improved ftnchek-error-first-line
+;;                many setq's changed to defvar
+;;                simplified ftnchek-current-subprogram
+;;                consolidated dangling parentheses   :)
+;;                miscellaneous cleanup to permit byte-compile w/o warnings
 ;;  v 0.8 12/10/02 oops, regexp-opt causes problems, switch to regexp-or
 ;;  v 0.7 12/4/02 Tested with emacs 21
 ;;                Menu-bar renamed "Ftnchek" and simplified
@@ -77,8 +93,6 @@
 (require 'fortran)
 (require 'compile)
 
-(defvar ftnchek-mode-version "0.8")
-(defvar ftnchek-mode-date "12/10/2002")
 (defvar ftnchek-maintainer "<milgram@cgpp.com>")
 (defvar ftnchek-flags nil)
 (defvar ftnchek-startup-message) ; maybe do this with "let"?
@@ -95,8 +109,7 @@
   "Ftnchek options to use when checking an individual subprogram")
 (defcustom ftnchek-f77-flags
   nil
-  "F77 strictness flags that get toggled in pull-down menu"
-)
+  "F77 strictness flags that get toggled in pull-down menu")
 
 (defun ftnchek-mode(&optional arg)
   "Ftnchek minor mode."
@@ -104,27 +117,22 @@
   (setq ftnchek-mode
 	(if (null arg)
 	    (not ftnchek-mode)
-	  (> (prefix-numeric-value arg)  0)))
+	  (> (prefix-numeric-value arg)  0))))
 ;   (if ftnchek-mode  ... etc.
-)
 
 (defun ftnchek-temp-file(s)
   "Generate a temp file with .f suffix"
   (concat
    (make-temp-name
     (expand-file-name s temporary-file-directory))
-   ".f")
-  )
+   ".f"))
 
 (defun ftnchek-delete-lines-forward()
   "Delete all lines starting with current line"
   (save-excursion
     (let ((begin (point))
 	  (end (point-max)))
-      (delete-region begin end)
-      )
-    )
-  )
+      (delete-region begin end))))
 
 (defun ftnchek-mask-lines-before-here()
   "Replace all lines preceding point with blank lines"
@@ -133,18 +141,23 @@
      (beginning-of-line)
      (let ((beg (point)))
        (end-of-line)
-       (delete-region beg (point)))
-     )
-   )
- )
+       (delete-region beg (point))))))
+
+(defvar
+ ftnchek-error-regexp-alist
+ (list
+;; line 1 col 2 file foo.f
+  (list ".*line \\([0-9]+\\)\\( col \\([0-9]+\\)\\)? file \\([^ ;$|:\n\t]+\\)" 4 1 3)
+;; "foo.f", line 14 col 19:
+  (list "\"\\([^\"]+\\)\", \\(near \\)?line \\([0-9]+\\)\\( col \\([0-9]+\\)\\)?" 1 3 5)))
+
 
 (defun ftnchek-region(ftnchek-flags)
   "Run ftnchek on a region using compile()"
   ;; first, last are character positions. Convert to line positions.
   (let ((temp-file (ftnchek-temp-file "ftnchek" ))
 	(first (point))
-	(last (mark))
-	)
+	(last (mark))	)
     (copy-region-as-kill (point-min) (point-max))
     (with-temp-file temp-file
       (yank)
@@ -153,9 +166,7 @@
       (goto-char first)
       (ftnchek-mask-lines-before-here)
       )
-    (compile-internal (ftnchek-command temp-file ftnchek-flags (buffer-name)) "No more errors" nil nil ftnchek-error-regexp-alist nil nil nil nil )
-    )
-  )
+    (compile-internal (ftnchek-command temp-file ftnchek-flags (buffer-name)) "No more errors" nil nil ftnchek-error-regexp-alist nil nil nil nil )))
 
 (defun ftnchek-command(file-name &optional flags real-name)
   "Form the command to run ftnchek"
@@ -174,11 +185,8 @@
 	;; we assume this means file-name is a temp file
 	;; maybe not always the case !
       (setq rval (concat rval " | sed 's|" file-name
-			 "|" real-name "|g' && rm -f " file-name))
-      )
-    rval
-    )
-  )
+			 "|" real-name "|g' && rm -f " file-name)))
+    rval))
 
 (defun ftnchek-buffer()
   "Run ftnchek on current buffer."
@@ -186,9 +194,7 @@
   (save-excursion
     (mark-whole-buffer)
     (ftnchek-region ftnchek-buffer-flags)
-    (message "Checking entire buffer %s" (buffer-name))
-    )
-  )
+    (message "Checking entire buffer %s" (buffer-name))))
 
 (defun ftnchek-subprogram()
   "Run ftnchek on suprogram the cursor is in. You can run
@@ -199,10 +205,8 @@
 ;;    (mark-fortran-subprogram)
 ;; As of fortran mode v 21.2 or maybe even earlier:
     (mark-defun)
-    (ftnchek-region ftnchek-subprogram-flags)
-    (message "Checking %s" (ftnchek-current-subprogram))
-    )
-  )
+    (ftnchek-region ftnchek-subprogram-flags))
+    (message "Checking %s" (ftnchek-current-subprogram)))
 
 
 (defun ftnchek-strict-f77()
@@ -210,9 +214,7 @@
   (interactive)
   (if (equal ftnchek-f77-flags "-f77")
       (setq ftnchek-f77-flags nil)
-    (setq ftnchek-f77-flags "-f77")
-    )
-  )
+    (setq ftnchek-f77-flags "-f77")))
 
 ; I'm not sure I like these but nobody's complaining.
 (define-key fortran-mode-map "\C-x`" 'ftnchek-next-error)
@@ -243,8 +245,7 @@
      ["First executable   " ftnchek-first-executable t]
      ["Prev subprogram   " ftnchek-previous-subprogram t]
      ["Next subprogram   " ftnchek-next-subprogram t]
-     )
-   )
+     ))
  ;; )
 
 
@@ -263,8 +264,7 @@
 (defun ftnchek-version-display()
 "Print the ftnchek version and patch level."
 (interactive)
-(message (concat (ftnchek-version) "; ftnchek.el v. " ftnchek-mode-version))
-)
+(message (concat (ftnchek-version) "; ftnchek.el v. " ftnchek-mode-version)))
 
 ;; This should probably be done with a pipe and sed.
 (defun ftnchek-version()
@@ -285,22 +285,22 @@
       (setq first (point))
       (end-of-line)
       (setq last (point))
-      (buffer-substring first last)      
-      )
-    )
-  )
+      (buffer-substring first last))))
 
 (defun ftnchek-error-first-line()
   "set first line of multiline ftnchek error message to top of window"
-  (let (here)
-    (setq here (point))
+  (let (( here (point)))
     (beginning-of-line)
-    (if (looking-at "^.*\\(Warning\\|Error\\)")
-	(goto-char here)
-      (re-search-backward "^.*\\(Warning\\|Error\\)" nil t))
-    (recenter 0)
-    )
-  )
+    (if (not (looking-at "^.*\\(Warning\\|Error\\)"))
+	(re-search-backward "^.*\\(Warning\\|Error\\)" nil t)
+      (forward-line -1)
+      (if (not (looking-at "^ *\\^"))
+	  (goto-char here)
+	(forward-line -1)
+	(if (not (looking-at "^ *[0-9]+"))
+	    (forward-line 2))
+	)))
+  (recenter 0))
 
 (defun ftnchek-next-error()
 "ftnchek mode wrapper for next-error"
@@ -308,18 +308,8 @@
 (next-error)
 (other-window 1)
 (ftnchek-error-first-line) 
-(other-window -1)
-)
+(other-window -1))
 
-(setq
- ftnchek-error-regexp-alist
- (list
-;; line 1 col 2 file foo.f
-  (list ".*line \\([0-9]+\\)\\( col \\([0-9]+\\)\\)? file \\([^ ;$|:\n\t]+\\)" 4 1 3)
-;; "foo.f", line 14 col 19:
-  (list "\"\\([^\"]+\\)\", \\(near \\)?line \\([0-9]+\\)\\( col \\([0-9]+\\)\\)?" 1 3 5)
-  )
-)
 
 ;; I hope this is a good idea
 (setq compilation-error-regexp-alist
@@ -347,19 +337,17 @@
   (let ((rval (mapconcat 'identity s "\\|")))
     (if (eq parens nil)
 	rval
-      (concat "\\(" rval "\\)")
-      )
-    )
-  )
+      (concat "\\(" rval "\\)"))))
 
-(setq ftnchek-first-six-regexp "^[0-9 ][0-9 ][0-9 ][0-9 ][0-9 ] +")
-(setq ftnchek-blank-line-regexp "^[ \t]*$")      
-(setq ftnchek-continuation-line-regexp "^[0-9 ][0-9 ][0-9 ][0-9 ][0-9 ][^ ] *")
-(setq ftnchek-comment-regexp "^[Cc]" )
-(setq ftnchek-symbolic-name-regexp "\\([a-zA-Z][a-zA-Z0-9]*\\)") ; embedded blanks?
+;; What about embedded spaces?
 
-;; "character" handled separately because it requires a regexp
-(setq ftnchek-type-regexp-list (list
+(defvar ftnchek-first-six-regexp "^[0-9 ][0-9 ][0-9 ][0-9 ][0-9 ] +")
+(defvar ftnchek-blank-line-regexp "^[ \t]*$")      
+(defvar ftnchek-continuation-line-regexp "^[0-9 ][0-9 ][0-9 ][0-9 ][0-9 ][^ ] *")
+(defvar ftnchek-comment-regexp "^[Cc]" )
+(defvar ftnchek-symbolic-name-regexp "\\([a-zA-Z][a-zA-Z0-9]*\\)")
+
+(defvar ftnchek-type-regexp-list (list
 				"integer"
 				"real"
 				"double *precision"
@@ -368,11 +356,11 @@
 				"logical"
 				"\\(character\\( *\\* *[0-9]+\\)?\\)" ))
 
-(setq ftnchek-type-regexp (regexp-or ftnchek-type-regexp-list t))
+(defvar ftnchek-type-regexp (regexp-or ftnchek-type-regexp-list t))
 
-(setq ftnchek-subprogram-end-regexp (concat ftnchek-first-six-regexp "end *$"))
+(defvar ftnchek-subprogram-end-regexp (concat ftnchek-first-six-regexp "end *$"))
 
-(setq ftnchek-program-unit-begin-regexp
+(defvar ftnchek-program-unit-begin-regexp
       (concat ftnchek-first-six-regexp
 	      (regexp-or (list
 			  (concat ftnchek-type-regexp "? *function")
@@ -385,7 +373,7 @@
 ;; statement functions, which F77 also classes as non-executable.
 
 ; The items commented out are covered in ftnchek-type-regexp
-(setq ftnchek-non-executable-keyword-regexp-list
+(defvar ftnchek-non-executable-keyword-regexp-list
       (list
        "block *data"
        "character"
@@ -411,7 +399,7 @@
        "save"
        "subroutine"))
 
-(setq ftnchek-non-executable-statement-regexp
+(defvar ftnchek-non-executable-statement-regexp
       (concat ftnchek-first-six-regexp
 	      (regexp-or ftnchek-non-executable-keyword-regexp-list t)))
 
@@ -428,11 +416,7 @@
 	    ( name   (match-string 5) ))
 	(if (not (eq name nil))
 	    (concat title " " name)
-	  name)
-	)
-      )
-    )
-  )
+	  name)))))
 
 
 (defun ftnchek-end-of-subprogram()
@@ -443,9 +427,7 @@
       (if (re-search-backward ftnchek-subprogram-end-regexp nil t)
 	  (beginning-of-line)
 	(message "No end statement found beyond this point.")))
-      (goto-char here)
-      )
-    )
+      (goto-char here)))
 
 (defun ftnchek-find-program-unit-statement( N )
   "Move point either forwards or backwards to program unit start statement,
@@ -459,8 +441,7 @@ and return the title, or nil. N is either 1 (forward) or -1 (backward)"
 	     (eq N -1))
 	(setq name "unnamed main program")
       )
-    name )
-  )
+    name ))
 
 (defun ftnchek-beginning-of-subprogram()
   "Move point to start of a program unit. Could be beginning of file.
@@ -475,18 +456,12 @@ and return the title, or nil. N is either 1 (forward) or -1 (backward)"
 (defun ftnchek-current-subprogram()
   "Return name of current subprogram without actually moving point"
   (save-excursion
-    (setq s (ftnchek-beginning-of-subprogram))
-    )
-  )
+    (ftnchek-beginning-of-subprogram)))
  
 (defun ftnchek-what-subprogram()
   "Display the title of current Fortran subprogram"
   (interactive)
-  (message (ftnchek-current-subprogram))
-  )
-
-; next and previous subprogram could probably be done easier with
-; imenu?
+  (message (ftnchek-current-subprogram)))
 
 (defun ftnchek-next-subprogram()
   "Move point to next subprogram"
@@ -496,22 +471,16 @@ and return the title, or nil. N is either 1 (forward) or -1 (backward)"
     (if (ftnchek-find-program-unit-statement 1)
 	(message (ftnchek-current-subprogram))
       (message "Don't seem to be any more" )
-      (goto-char here)
-      )
-    )
-  )
+      (goto-char here))))
 
 (defun ftnchek-previous-subprogram()
   "Move point to previous subprogram"
   (interactive)
-  ;; moving backwards, we always get a program unit name even if "Unnamed main"
-  ;; That's why we have to check that we actually moved somewhere.
+  ;; moving backwards, we always get a program unit name even if "unnamed main"
   (if (not (re-search-backward ftnchek-subprogram-end-regexp nil t))
 	(message "Already seem to be in first one")
       (ftnchek-beginning-of-subprogram)
-      (message (ftnchek-current-subprogram))
-    )
-  )
+      (message (ftnchek-current-subprogram))))
   
 
 
@@ -521,19 +490,15 @@ and return the title, or nil. N is either 1 (forward) or -1 (backward)"
   (or (looking-at ftnchek-non-executable-statement-regexp)
       (looking-at ftnchek-comment-regexp)
       (looking-at ftnchek-continuation-line-regexp)
-      (looking-at ftnchek-blank-line-regexp)
-      )
-  )
+      (looking-at ftnchek-blank-line-regexp)))
 
 (defun ftnchek-next-executable-statement()
   "Skip to next executable statement"
-  (while (ftnchek-nonexecutable-statement) (forward-line))
-  )
+  (while (ftnchek-nonexecutable-statement) (forward-line)))
 
 (defun ftnchek-first-executable()
   "Move cursor to first executable statement in current subprogram"
   (interactive)
   (ftnchek-beginning-of-subprogram)
   (ftnchek-next-executable-statement)
-  (message "First executable statement in %s" (ftnchek-current-subprogram))
-  )
+  (message "First executable statement in %s" (ftnchek-current-subprogram)))
