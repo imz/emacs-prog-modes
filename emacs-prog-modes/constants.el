@@ -2,7 +2,7 @@
 ;; Copyright (c) 2003, 2004, 2005 Carsten Dominik
 
 ;; Author: Carsten Dominik <dominik@science.uva.nl>
-;; Version: 2.0
+;; Version: 2.2
 ;; Keywords: programming, languages
 
 ;; This file is not part of GNU Emacs.
@@ -453,9 +453,9 @@ This is mainly useful for modes which have several incarnations, like
      ;; (gp-mode default)
      )
     
-    ("mph"           ""       "Miles per  hour"        "4.4704e-1 [m/s]"       "4.4704e1 [cm/s]")
+    ("mph"           ""       "Miles per hour"         "4.4704e-1 [m/s]"       "4.4704e1 [cm/s]")
     ;; knot = nmi / hour
-    ("knot"          ""       "Knot"                   "5.144444444e1 [m/s]"   "5.144444444e-1 [cm/s]")
+    ("knot"          ""       "Knot"                   "5.144444444e-1 [m/s]"   "5.144444444e1 [cm/s]")
 
     "Mass units"
 
@@ -619,10 +619,12 @@ This is mainly useful for modes which have several incarnations, like
     ("Lsun"          ""       "Solar Luminosity"       "3.82e26 [W]"          "3.82e33 [erg/s]")
     ("Msun"          ""       "Solar Mass"             "1.989e30 [kg]"        "1.989e33 [g]")
     ("Mjupiter"      "Mjup"   "Jupiter mass"           "1.8986e27 [kg]"       "1.8986e30 [g]")
-    ("Mearth"        "MEa"    "Earth Mass"             "5.976e24 [kg]"        "5.976e27 [g]")
+    ("Mearth"        "Mea"    "Earth Mass"             "5.976e24 [kg]"        "5.976e27 [g]")
     ("Mmoon"         "Mmn"    "Moon mass"              "7.35e22 [kg]"         "7.35e25 [g]")
     ("Rsun"          ""       "Solar radius"           "6.96e8 [m]"           "6.96e10 [cm]")
     ("Rearth"        ""       "Earth radius"           "6.378e6 [m]"          "6.378e8 [cm]")
+    ("Rmoon"         ""       "Moon radius"            "1.738e6 [m]"          "1.738e8 [cm]")
+    ("Rjupiter"      "Rjup"   "Earth radius"           "7.1492e7 [m]"         "7.1492e9 [cm]")
     ("AstronUnit"    "AU"     "Astronomical unit"      "1.49597870691e11 [m]" "1.49597870691e13 [cm]")
     ("Jansky"        "Jy"     "Jansky"                 "1e-26 [W / m^2 Hz]"   "1e-23 [erg/cm^2 s Hz]")
     ("gEarth"        "ga"     "Earth acceleration"     "9.80665e0 [m/s^2]"    "9.80665e2 [cm/s^2]")

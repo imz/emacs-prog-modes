@@ -4,7 +4,7 @@
 %define pkg_name prog-modes
 
 Version: 0.2
-Release: alt2
+Release: alt3
 Name: emacs-%pkg_name
 License: GPL
 Group: Editors
@@ -29,7 +29,7 @@ BuildArch: noarch
 BuildPreReq: emacs-devel >= 0.0.1-alt2
 
 # Automatically added by buildreq on Thu Oct 13 2005
-BuildRequires: emacs-cedet emacs22-common emacs-elib emacs22-leim fontconfig freetype2 xorg-x11-locales
+BuildRequires: emacs-cedet emacs-common emacs-elib emacs-leim fontconfig freetype2 xorg-x11-locales
 
 %description
 Various programming packages for Emacs, including packages for editing
@@ -68,6 +68,11 @@ programms on C, Scheme, Fortran and others.
 
 
 %changelog
+* Tue Apr 08 2008 Eugene Vlasov <eugvv@altlinux.ru> 0.2-alt3
+- Updated autoconf-mode, clearcase, compile-, compile+, constants,
+  dbfrobs, mode-compile, php-mode, quack
+- Removed verilog-mode
+
 * Sat Feb 04 2006 Eugene Vlasov <eugvv@altlinux.ru> 0.2-alt2
 - Build with emacs-devel
 - Updated oct (and renamed from ect)

@@ -1,11 +1,11 @@
 ;;; clearcase.el --- ClearCase/Emacs integration.
 
-;; Copyright (C) 1999, 2000, 2001, 2002, 2003, 2004 Kevin Esler
+;; Copyright (C) 1999, 2000, 2001, 2002, 2003, 2004, 2006, 2006, 2007 Kevin Esler
 
 ;; Author: Kevin Esler <kaesler@us.ibm.com>
 ;; Maintainer: Kevin Esler <kaesler@us.ibm.com>
 ;; Keywords: clearcase tools
-;; Web home: http://members.verizon.net/~vze24fr2/EmacsClearCase
+;; Web home: http://members.verizon.net/~kevin.a.esler/EmacsClearCase
 
 ;; This file is not part of GNU Emacs.
 ;;
@@ -148,7 +148,7 @@
 
 ;;{{{ Version info
 
-(defconst clearcase-version-stamp "ClearCase-version: </main/laptop/156>")
+(defconst clearcase-version-stamp "ClearCase-version: </main/laptop/166>")
 (defconst clearcase-version (substring clearcase-version-stamp 19))
 
 (defun clearcase-maintainer-address ()

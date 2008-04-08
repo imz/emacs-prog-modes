@@ -4,14 +4,19 @@
 ;; Description: Extensions to `compile.el'
 ;; Author: Drew Adams
 ;; Maintainer: Drew Adams
-;; Copyright (C) 2004, Drew Adams, all rights reserved.
+;; Copyright (C) 2004-2008, Drew Adams, all rights reserved.
 ;; Created: Tue Nov 16 17:04:11 2004
 ;; Version: 21.0
-;; Last-Updated: Mon Oct 03 12:45:05 2005
+;; Last-Updated: Tue Jan 01 14:14:48 2008 (-28800 Pacific Standard Time)
 ;;           By: dradams
-;;     Update #: 21
+;;     Update #: 87
+;; URL: http://www.emacswiki.org/cgi-bin/wiki/compile-.el
 ;; Keywords: tools, processes
 ;; Compatibility: GNU Emacs 21.x,GNU Emacs 22.x
+;;
+;; Features that might be required by this library:
+;;
+;;   `avoid', `fit-frame', `frame-fns'.
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -23,26 +28,36 @@
 ;;        `compile-.el' should be loaded before `compile.el'.
 ;;        `compile+.el' should be loaded after `compile.el'.
 ;;
+;;  Put this in your initialization file (`~/.emacs'):
 ;;
-;;  New user option (variable) defined here: `compile-regexp-face'.
+;;    (require 'compile-)
+;;
+;;
+;;  New face defined here:
+;;
+;;  `compilation-mouseover' - Use instead of highlight for mouse-face.
 ;;
 ;;  Function `fit-1-window-frames-on' (defined in `fit-frame.el') is
 ;;  added here to `compilation-finish-functions'.
 ;;
 ;;
-;;  Put this in your initialization file (`~/.emacs'):
+;;  ***** NOTE: The following variable defined in `compile.el'
+;;              has been REDEFINED HERE:
 ;;
-;;    (require 'compile+)
-;;
-;;  Library `compile-' requires these libraries:
-;;
-;;    `avoid', `fit-frame', `frame-cmds', `frame-fns', `misc-fns',
-;;    `strings', `thingatpt', `thingatpt+'.
+;;  `compilation-message-face' -
+;;     We set the default value to nil, to get rid of underlining.
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 ;;; Change log:
 ;;
+;; 2006/04/02 dadams
+;;     Added defcustom of compilation-message-face (nil) to get rid of underlining.
+;; 2005/12/26 dadams
+;;     Updated parent groups.
+;; 2005/12/16 dadams
+;;     Added: compilation-mouseover.
+;;     Removed: compile-regexp-face.  Use next-error face, not compile-regexp-face.
 ;; 2004/11/26 dadams
 ;;     Require frame-fns.el[c].
 ;; 2004/11/16 dadams
@@ -61,9 +76,9 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with this program; see the file COPYING.  If not, write to the
-;; Free Software Foundation, Inc., 59 Temple Place - Suite 330,
-;; Boston, MA 02111-1307, USA.
+;; along with this program; see the file COPYING.  If not, write to
+;; the Free Software Foundation, Inc., 51 Franklin Street, Fifth
+;; Floor, Boston, MA 02110-1301, USA.
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -75,23 +90,31 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
+;; Use nil, not `underline', to turn off underlining.
+(defcustom compilation-message-face nil
+  "Face name to use for whole messages.
+Faces `compilation-error-face', `compilation-warning-face',
+`compilation-info-face', `compilation-line-face' and
+`compilation-column-face' get prepended to this, when applicable."
+  :type 'face :group 'compilation :version "22.1")
+
+;; Instead of `highlight', which is hard-coded in `compile.el'.
 ;;;###autoload
-(defvar compile-regexp-face
-  (or (and (boundp 'skyblue-background-face) skyblue-background-face)
-      (and (fboundp 'set-face-background)
-           (fboundp 'x-color-defined-p)
-           (x-color-defined-p "SkyBlue")
-           (prog1 (make-face 'grep-regexp-face)
-             (set-face-background 'grep-regexp-face "SkyBlue")))
-      'highlight)
-  "*Face for highlighting `compile' regexps.")
+(defface compilation-mouseover '((t (:underline t)))
+  "Face used to highlight text the mouse is over."
+  :group 'compilation :group 'font-lock-highlighting-faces)
 
+(when (and (fboundp 'x-color-defined-p) (x-color-defined-p "SkyBlue"))
+  (cond ((facep 'next-error)
+         (set-face-foreground 'next-error nil)
+         (set-face-background 'next-error  "SkyBlue"))
+        (t
+         (defface next-error '((t (:background "SkyBlue")))
+           "Face used to highlight next error locus."
+           :group 'next-error))))
+                                   
 
-;;;;; ;;;###autoload
-;;;;; (defvar compile-buffer-mouse-face 'underline
-;;;;;   "*Face for highlighting mouse-overs in compilation buffer.")
-
-
+;; Resize frame to fit buffer - hook `compilation-finish-functions'.
 (when (and (fboundp 'fit-frame) (fboundp '1-window-frames-on))
   (defun fit-1-window-frames-on (buf &optional ignored)
     "Resize buffer BUF's one-window frame(s) to fit the buffer.
@@ -103,7 +126,6 @@ Usable, e.g., as a member of `compilation-finish-functions'."
         (fit-frame (car frs))           ; Defined in `fit-frame.el'.
         (setq frs (cdr frs)))))
   (add-hook 'compilation-finish-functions 'fit-1-window-frames-on))
-
 
 ;;;;;;;;;;;;;;;;;;;;;;;
 

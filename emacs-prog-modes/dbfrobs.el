@@ -1,19 +1,12 @@
 ;;; dbfrobs.el --- useful enhancements for debugging
 
-;;; Copyright (C) 1994, 1995 Noah S. Friedman
+;;; Copyright (C) 1994, 1995, 2006 Noah S. Friedman
 
-;; Author: Noah Friedman <friedman@prep.ai.mit.edu>
-;; Maintainer: friedman@prep.ai.mit.edu
-;; Keywords: extensions, debug, frobs
-;; Status: works in Emacs 19 and XEmacs.
+;; Author: Noah Friedman <friedman@splode.com>
+;; Maintainer: friedman@splode.com
 ;; Created: 1994-10-18
 
-;; LCD Archive Entry:
-;; dbfrobs|Noah Friedman|friedman@gnu.ai.mit.edu|
-;; useful enhancements for debugging|
-;; $Date: 1997/06/14 12:13:06 $|$Revision: 1.8 $|~/functions/dbfrobs.el.gz|
-
-;; $Id: dbfrobs.el,v 1.8 1997/06/14 12:13:06 friedman Exp $
+;; $Id: dbfrobs.el,v 1.9 2006/10/11 03:14:10 friedman Exp $
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -46,9 +39,7 @@
 ;;; Code:
 
 (require 'advice)
-(require 'backquote)
 
-
 (defvar dbfrobs::uninteresting-error-conditions
   '(beginning-of-buffer
     buffer-read-only
@@ -75,8 +66,8 @@ automatically.  To do so, load this file and put the following in your
 .emacs:
 
     (add-hook 'after-debugger-mode-hook
-              '(lambda ()
-                 (setq truncate-lines nil)))")
+              (lambda ()
+                (setq truncate-lines nil)))")
 
 
 ;;;###autoload
@@ -117,11 +108,9 @@ Use `dbfrobs:debug-on-interesting-errors' or
   "Return a list of all known error conditions.
 This means find all symbol names which have an `error-condition' property."
   (let (symlist)
-    (mapatoms
-     (function
-      (lambda (sym)
-        (and (get sym 'error-conditions)
-             (setq symlist (cons sym symlist))))))
+    (mapatoms (lambda (sym)
+                (and (get sym 'error-conditions)
+                     (setq symlist (cons sym symlist)))))
     symlist))
 
 (defun dbfrobs:interesting-error-conditions ()
@@ -205,10 +194,9 @@ name, with the second argument PERMANENTP indicating whether to update
                               ;; already in debug-on-error.  Note the need
                               ;; to get the real symbol from the global
                               ;; obarray.
-                              (function
-                               (lambda (sym)
-                                 (not (memq (intern (symbol-name sym))
-                                            debug-on-error))))
+                              (lambda (sym)
+                                (not (memq (intern (symbol-name sym))
+                                           debug-on-error)))
                               'require-match))
                      (if current-prefix-arg t nil)))
   (dbfrobs::set-condition 'interesting condition permanentp))
@@ -240,66 +228,29 @@ name, with the second argument PERMANENTP indicating whether to update
   (dbfrobs::set-condition 'uninteresting condition permanentp))
 
 
-(defun dbfrobs::insert-hooks (function head-hook &optional tail-hook)
-  "Rewrite the function FUNCTION to run hooks.
+(defun dbfrobs:call-stack-list ()
+  "Return a list of current emacs-lisp stack frame data."
+  (let ((i 1)
+        (f nil)
+        (stack nil))
+    (while (setq f (backtrace-frame i))
+      (setq stack (cons f stack)
+            i     (1+ i)))
+    stack))
 
-If second argument HEAD-HOOK, a symbol referring to a named hook, is
-non-nil, insert a form in FUNCTION that will run that hook before anything
-else is done.
-
-If optional third argument TAIL-HOOK is non-nil, insert a form in FUNCTION
-that will run the hook as the last thing done.
-
-Return value is new definition of FUNCTION.
-
-FUNCTION may be an autoloaded function, subr, or lambda-expression, but may
-not be a macro."
-  (if head-hook
-      (ad-add-advice
-       function
-       (ad-make-advice head-hook nil t
-                       (` (advice lambda ()
-                                  (, (format "Runs hook %s before all else."
-                                             head-hook))
-                                  (run-hooks '(, head-hook)))))
-       'before 'first))
-  (if tail-hook
-      (ad-add-advice
-       function
-       (ad-make-advice tail-hook nil t
-                       (` (advice lambda ()
-                                  (, (format "Runs hook %s after all else."
-                                             tail-hook))
-                                  (run-hooks '(, tail-hook)))))
-       'after 'last))
-  (ad-activate function (byte-code-function-p (indirect-function function))))
-
-;; XEmacs (as of 19.13) does not have eval-after-load or load-history.
-(defun dbfrobs::eval-after-load(key &rest forms)
-  "Add all FORMS to KEY in `auto-load-alist' that aren't already present.
-If KEY is not in auto-load-alist, it and all FORMS are added.
-If KEY is library which is already loaded, immediately evaluate all of the
-forms which were not already present."
-  (let ((node (assoc key after-load-alist))
-        (new nil))
-    (cond (node
-           (while forms
-             (or (member (car forms) (cdr node))
-                 (setq new (cons (car forms) new)))
-             (setq forms (cdr forms)))
-           (cond (new
-                  (setq new (nreverse new))
-                  (nconc (cdr node) new))))
-          (t
-           (setq after-load-alist (cons (apply 'list key forms)
-                                        after-load-alist))
-           (setq new forms)))
-    ;; Eval new forms now if library was already loaded.
-    (and (boundp 'load-history)
-         (assoc key load-history)
-         (while new
-           (eval (car new))
-           (setq new (cdr new))))))
+(defun dbfrobs:in-call-stack-p (name)
+  "Return non-nil if NAME is a function currently being called.
+The parameter NAME may be a symbol or a regular expression."
+  (save-match-data
+    (let (f (i 0))
+      (catch 'fish
+        (while (setq f (backtrace-frame (setq i (1+ i))))
+          (and (consp f)
+               (symbolp (setq f (cadr f)))
+               (if (symbolp name)
+                   (eq f name)
+                 (string-match name (symbol-name f)))
+               (throw 'fish t)))))))
 
 
 ;; For user convenience:
@@ -316,21 +267,12 @@ forms which were not already present."
 ;;;###autoload
 (defalias 'cancel-debug-on-condition 'dbfrobs:cancel-debug-on-condition)
 
-;; No version of emacs presently implements after-debugger-mode-hook, so we
-;; must modify `debugger-mode' with advice to use it.  Add an entry to
-;; after-load-alist to implement this.  Also modify debugger-mode now, if
-;; it's already loaded.
-(let ((fn (if (fboundp 'eval-after-load)
-              'eval-after-load
-            'dbfrobs::eval-after-load)))
-  (funcall fn "debug"
-    '(dbfrobs::insert-hooks 'debugger-mode nil 'after-debugger-mode-hook)))
+;; Emacs 20.3 and later have `debugger-mode-hook', but for the sake of
+;; backward compatibility, keep using our after-debugger-mode-hook.
+(defadvice debugger-mode (after dbfrobs:after-debugger-mode-hook activate)
+  "Run the contents of `after-debugger-mode-hook' after all else."
+  (run-hooks 'after-debugger-mode-hook))
 
-;; See if it ought to be fixed right away.
-(and (fboundp 'debugger-mode)
-     (dbfrobs::insert-hooks 'debugger-mode nil 'after-debugger-mode-hook))
-
-
 (provide 'dbfrobs)
 
 ;;; dbfrobs.el ends here
