@@ -4,19 +4,18 @@
 %define pkg_name prog-modes
 
 Version: 0.2
-Release: alt3
+Release: alt4
 Name: emacs-%pkg_name
 License: GPL
 Group: Editors
 Summary: Various programming packages for Emacs
 Summary(ru_RU.UTF-8): Дополнительные пакеты Emacs для работы с исходными текстами программ
-Requires: emacs-common deroff
+Requires: emacs-common
 
 Packager: Emacs Maintainers Team <emacs@packages.altlinux.org>
 
 Source: %name.tar.gz
 Source1: emacs-mode-php-site-start.el
-Source2: emacs-c-mode-addons-site-start.el
 Source3: emacs-mode-eiffel-site-start.el
 Source4: emacs-mode-postscript-site-start.el
 Source5: emacs-mode-rexx-site-start.el
@@ -45,29 +44,31 @@ programms on C, Scheme, Fortran and others.
 %setup -q -n %name
 
 %install
-%__mkdir_p %buildroot%_emacslispdir/
-%__install -m 644 *.el* %buildroot%_emacslispdir/
-%__mkdir_p %buildroot%_emacs_etc_dir/%pkg_name/
-%__install -m 755 *.sh %buildroot%_emacs_etc_dir/%pkg_name/
-%__install -m 644 c_synopsis_list %buildroot%_emacs_etc_dir/%pkg_name/
-%__install -pD -m0644 %SOURCE1 %buildroot%_emacs_sitestart_dir/php.el
-%__install -pD -m0644 %SOURCE2 %buildroot%_emacs_sitestart_dir/c-mode-addons.el
-%__install -pD -m0644 %SOURCE3 %buildroot%_emacs_sitestart_dir/eiffel.el
-%__install -pD -m0644 %SOURCE4 %buildroot%_emacs_sitestart_dir/postscript.el
-%__install -pD -m0644 %SOURCE5 %buildroot%_emacs_sitestart_dir/rexx.el
-%__install -pD -m0644 %SOURCE6 %buildroot%_emacs_sitestart_dir/rpm.el
-%__install -pD -m0644 %SOURCE8 %buildroot%_emacs_sitestart_dir/vrml.el
-%__install -pD -m0644 %SOURCE9 %buildroot%_emacs_sitestart_dir/xbase.el
+mkdir -p %buildroot%_emacslispdir/
+install -m 644 *.el* %buildroot%_emacslispdir/
+# %__mkdir_p %buildroot%_emacs_etc_dir/%pkg_name/
+# %__install -m 755 *.sh %buildroot%_emacs_etc_dir/%pkg_name/
+# %__install -m 644 c_synopsis_list %buildroot%_emacs_etc_dir/%pkg_name/
+install -pD -m0644 %SOURCE1 %buildroot%_emacs_sitestart_dir/php.el
+install -pD -m0644 %SOURCE3 %buildroot%_emacs_sitestart_dir/eiffel.el
+install -pD -m0644 %SOURCE4 %buildroot%_emacs_sitestart_dir/postscript.el
+install -pD -m0644 %SOURCE5 %buildroot%_emacs_sitestart_dir/rexx.el
+install -pD -m0644 %SOURCE6 %buildroot%_emacs_sitestart_dir/rpm.el
+install -pD -m0644 %SOURCE8 %buildroot%_emacs_sitestart_dir/vrml.el
+install -pD -m0644 %SOURCE9 %buildroot%_emacs_sitestart_dir/xbase.el
 %byte_recompile_lispdir
 
 %files
 %doc emacs-prog-modes-list.txt
 %_emacslispdir/*.el*
-%_emacs_etc_dir/%pkg_name/
+# %_emacs_etc_dir/%pkg_name/
 %config(noreplace) %_emacs_sitestart_dir/*
 
 
 %changelog
+* Thu May 01 2008 Eugene Vlasov <eugvv@altlinux.ru> 0.2-alt4
+- Removed c-mode-addons.el, c_synopsis_list and support scripts (#15474)
+
 * Tue Apr 08 2008 Eugene Vlasov <eugvv@altlinux.ru> 0.2-alt3
 - Updated autoconf-mode, clearcase, compile-, compile+, constants,
   dbfrobs, mode-compile, php-mode, quack
