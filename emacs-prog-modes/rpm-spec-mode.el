@@ -166,7 +166,7 @@ the package."
 (defcustom rpm-spec-user-full-name nil
   "*Full name of the user.
 This is used in the change log and the Packager tag.  It defaults to the
-value returned by function `user-full-name'."
+value of the variable `user-full-name'."
   :type '(choice (const :tag "Use `user-full-name'" nil)
                  string)
   :group 'rpm-spec)
@@ -174,7 +174,7 @@ value returned by function `user-full-name'."
 (defcustom rpm-spec-user-mail-address nil
   "*Email address of the user.
 This is used in the change log and the Packager tag.  It defaults to the
-value returned by function `user-mail-address'."
+value of the variable `user-mail-address'."
   :type '(choice (const :tag "Use `user-mail-address'" nil)
                  string)
   :group 'rpm-spec)
@@ -602,8 +602,8 @@ with no args, if that value is non-nil."
   (interactive "sChange log entry: ")
   (save-excursion
     (rpm-goto-section "changelog")
-    (let* ((address (or rpm-spec-user-mail-address (user-mail-address)))
-           (fullname (or rpm-spec-user-full-name (user-full-name)))
+    (let* ((address (or rpm-spec-user-mail-address user-mail-address))
+           (fullname (or rpm-spec-user-full-name user-full-name))
            (string (concat "* " (substring (current-time-string) 0 11)
                            (substring (current-time-string) -4) " "
                            fullname " <" address ">"
@@ -782,8 +782,8 @@ controls whether case is significant."
   "Insert Packager tag."
   (interactive "p")
   (beginning-of-line)
-  (insert "Packager: " (or rpm-spec-user-full-name (user-full-name))
-          " <" (or rpm-spec-user-mail-address (user-mail-address)) ">\n"))
+  (insert "Packager: " (or rpm-spec-user-full-name user-full-name)
+          " <" (or rpm-spec-user-mail-address user-mail-address) ">\n"))
 
 (defun rpm-change-packager (&optional arg)
   "Update Packager tag."
