@@ -553,7 +553,8 @@ with no args, if that value is non-nil."
                     "Post menu for `rpm-spec-mode'." rpm-spec-mode-menu)
   (easy-menu-add rpm-spec-mode-menu)
 
-  (if (= (buffer-size) 0)
+  (if (and rpm-spec-initialize-sections
+	   (= (buffer-size) 0))
       (rpm-spec-initialize))
 
   (if (executable-find "rpmbuild")
