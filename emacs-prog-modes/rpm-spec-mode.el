@@ -554,6 +554,10 @@ with no args, if that value is non-nil."
   (easy-menu-add rpm-spec-mode-menu)
 
   (if (and rpm-spec-initialize-sections
+	   ;; To prevent spoiling internal automatic buffers,
+	   ;; which in many cases are not attached to real files
+	   ;; (as in the operation of `emerge'):
+	   (buffer-file-name)
 	   (= (buffer-size) 0))
       (rpm-spec-initialize))
 
