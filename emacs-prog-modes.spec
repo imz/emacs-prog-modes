@@ -72,7 +72,8 @@ install -pD -m0644 %SOURCE9 %buildroot%_emacs_sitestart_dir/xbase.el
 - rpm-spec-mode:
   + do our best for the automatic initial filling not to intervene in
     the operation of emerge; 
-  + honor rpm-spec-initialize-sections (whether to do it in other cases).
+  + honor rpm-spec-initialize-sections (whether to do it in other cases);
+  + use <https://www.altlinux.org/SampleSpecs/empty> as the template.
 
 * Fri Jan 30 2015 Ivan Zakharyaschev <imz@altlinux.org> 0.2-alt6
 - rpm-spec-mode: use variables `user-mail-address` and
