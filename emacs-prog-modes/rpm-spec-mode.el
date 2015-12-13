@@ -1187,7 +1187,7 @@ if one is present in the file."
 
 (defun rpm-spec-initialize ()
   "Create a default spec file if one does not exist or is empty."
-  (let (file name version (release "1"))
+  (let (file name version (release "alt1"))
     (setq file (if (buffer-file-name)
                    (file-name-nondirectory (buffer-file-name))
                  (buffer-name)))
@@ -1202,30 +1202,62 @@ if one is present in the file."
      ((eq (string-match "\\(.*\\).spec" file) 0)
       (setq name (match-string 1 file))))
 
+    ;; <https://www.altlinux.org/SampleSpecs/empty> is the template.
     (insert
-     "Summary: "
-     "\nName: " (or name "")
+     "Name: " (or name "")
      "\nVersion: " (or version "")
-     "\nRelease: " (or release "")
+     "\nRelease: " (or release "alt")
+     "\n"
+     "\nSummary: "
+     "\n"
      "\nLicense: "
      "\nGroup: "
-     "\nURL: "
-     "\nSource0: %{name}-%{version}.tar.gz"
-     "\nBuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot"
-     "\n\n%description\n"
+     "\nUrl: "
+     "\n"
+     "\nPackager: "
+     ;; copied from `rpm-add-change-log-entry'
+     (let* ((address (or rpm-spec-user-mail-address user-mail-address))
+	    (fullname (or rpm-spec-user-full-name user-full-name)))
+       (concat fullname " <" address ">"))
+     "\n"
+     "\nSource: %name-%version.tar"
+     "\n"
+     "\nPatch: "
+     "\n"
+     "\nPreReq: "
+     "\nRequires: "
+     "\nProvides: "
+     "\nConflicts: "
+     "\n"
+     "\nBuildPreReq: "
+     "\nBuildRequires: "
+     "\nBuildArch: "
+     "\n"
+     "\n%description"
+     "\n"
      "\n%prep"
-     "\n%setup -q"
-     "\n\n%build"
-     "\n\n%install"
-     "\nrm -rf $RPM_BUILD_ROOT"
-     "\n\n%clean"
-     "\nrm -rf $RPM_BUILD_ROOT"
-     "\n\n%files"
-     "\n%defattr(-,root,root,-)"
-     "\n%doc\n"
-     "\n\n%changelog\n")
+     "\n%setup"
+     "\n%patch1 -p1"
+     "\n"
+     "\n%build"
+     "\n%configure"
+     "\n%make_build"
+     "\n"
+     "\n%install"
+     "\n%makeinstall_std"
+     "\n"
+     "\n%check"
+     "\n%make_build check"
+     "\n"
+     "\n%files"
+     "\n%_bindir/*"
+     "\n%_man1dir/*"
+     "\n%doc AUTHORS NEWS README"
+     "\n"
+     "\n%changelog\n"
+     )
 
-    (rpm-add-change-log-entry "Initial build.\n")))
+    (rpm-add-change-log-entry "initial build for ALT Linux Sisyphus.\n")))
 
 ;;------------------------------------------------------------
 
