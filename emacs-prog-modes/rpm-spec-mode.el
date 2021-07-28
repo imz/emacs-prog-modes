@@ -1275,3 +1275,7 @@ if one is present in the file."
 (provide 'rpm-spec-mode)
 
 ;;; rpm-spec-mode.el ends here
+
+;; Local Variables:
+;; coding: latin-1
+;; End:
