@@ -55,7 +55,7 @@
 ;; and auto-recognition of ".spec" files:
 ;;
 ;;  (autoload 'rpm-spec-mode "rpm-spec-mode.el" "RPM spec mode." t)
-;;  (setq auto-mode-alist (append '(("\\.spec" . rpm-spec-mode))
+;;  (setq auto-mode-alist (append '(("\\.spec\\'" . rpm-spec-mode))
 ;;                                auto-mode-alist))
 ;;------------------------------------------------------------
 ;;
@@ -1270,7 +1270,7 @@ if one is present in the file."
            " by Stig Bjørlykke, <stigb@tihlde.org>")))
 
 ;;;###autoload
-(add-to-list 'auto-mode-alist '("\\.spec$" . rpm-spec-mode))
+(add-to-list 'auto-mode-alist '("\\.spec\\'" . rpm-spec-mode))
 
 (provide 'rpm-spec-mode)
 
