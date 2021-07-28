@@ -1269,7 +1269,7 @@ if one is present in the file."
      "\n%changelog\n"
      )
 
-    (rpm-add-change-log-entry "initial build for ALT Linux Sisyphus.\n")))
+    (rpm-add-change-log-entry "initial build for ALT Linux Sisyphus.")))
 
 ;;------------------------------------------------------------
 
