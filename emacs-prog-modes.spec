@@ -1,6 +1,3 @@
-# -*- coding: utf-8; mode: rpm-spec -*-
-# $Id: emacs-prog-modes.spec,v 1.7 2006/02/04 18:02:41 eugene Exp $
-
 %define pkg_name prog-modes
 
 Version: 0.2
