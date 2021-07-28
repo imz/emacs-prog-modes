@@ -1187,7 +1187,7 @@ if one is present in the file."
 
 (defun rpm-spec-initialize ()
   "Create a default spec file if one does not exist or is empty."
-  (let (file name version (release "alt1"))
+  (let (file name (version "1") (release "alt1"))
     (setq file (if (buffer-file-name)
                    (file-name-nondirectory (buffer-file-name))
                  (buffer-name)))
