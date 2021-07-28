@@ -616,7 +616,7 @@ with no args, if that value is non-nil."
                                 (concat " " (rpm-find-spec-version t))))))
       (if (not (search-forward string nil t))
           (insert "\n" string "\n")
-        (forward-line 2))
+        (forward-line))
       (insert "- " change-log-entry "\n"))))
 
 ;;------------------------------------------------------------
