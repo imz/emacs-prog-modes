@@ -1,5 +1,5 @@
 ; site-start script for Emacs, initializes autoloading of
-; Autoconf mode
+; rpm-spec mode
 ; 
 ; November 2003
 ; ott@altlinux.ru
