@@ -607,6 +607,16 @@ with no args, if that value is non-nil."
   (interactive "sChange log entry: ")
   (save-excursion
     (rpm-goto-section "changelog")
+    ;; The position is to insert right after the end of the section heading
+    ;; (before a \n if any).
+    ;; The code below inserts a text that ends with a \n.
+    ;; So, if the rest of the file is not "blank", this correctly results
+    ;; in a blank line before the rest (a delimiter before the old entries).
+    ;; If the rest of the file is just "\n" (i.e., the \n at the end of
+    ;; the section heading line), then this \n would become an unwanted
+    ;; trailing blank line. Delete it now.
+    (if (string-equal "\n" (buffer-substring (point) (point-max)))
+	(delete-char 1))
     (let* ((address (or rpm-spec-user-mail-address user-mail-address))
            (fullname (or rpm-spec-user-full-name user-full-name))
            (string (concat "* " (substring (current-time-string) 0 11)
@@ -617,6 +627,8 @@ with no args, if that value is non-nil."
       (if (not (search-forward string nil t))
           (insert "\n" string "\n")
         (forward-line))
+      ;; The position is at the beginning of the next line after string.
+      ;; (It can be the delimiting blank line or a the first item in the entry.)
       (insert "- " change-log-entry "\n"))))
 
 ;;------------------------------------------------------------
